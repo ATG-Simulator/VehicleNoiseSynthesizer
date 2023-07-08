@@ -7,22 +7,36 @@
 ```
 An Enhanced FM4-Inspired Vehicle Sound Synthesizer
 ```
+
 ***Can be used for:***
 :ballot_box_with_check: Engine
+
 :ballot_box_with_check: Intake
+
 :ballot_box_with_check: Exhausts
+
 :ballot_box_with_check: Transmission¹
+
 :ballot_box_with_check: Differential¹ (and more!)
 
 :information_source:  This uses real audio clips per Engine RPM and Engine Load to create realistic sound/noise
 
+
+
 ***Pros:***
+
 :white_check_mark:  Lightweight (Async Calculations - per fixed delta time)
+
 :white_check_mark:  Uses only Unity, Optionally supports Unity Audio Mixer - No FMOD needed
+
 :white_check_mark:  Auto setups audio clips and procedural Audio Source creation make it user-friendly for modding
 
+
+
 ***Cons:***
+
 :x: Needs separate audio files per RPM²
+
 :x: Does not respect engine piston cycle frequency for fading audio clips *Or in other words, it fades audio clips linearly smoothly which is not "always" good*
 
 :warning:***Why you better use FMOD plugins or paid assets instead?***
@@ -53,8 +67,11 @@ _Check ATG Simulator's website and social media please:_
 *  <https://twitter.com/atg_simulator>
 *  <https://www.instagram.com/atg_simulator/>
 *  <https://atg-simulator.com/>
+
 _I'm recording and sharing the steps of ATG creation in the future here on my Youtube Channel <https://youtube.com/c/imdanoush>_
 _________________________________
 Footnotes:
+
 ¹ Transmission and differential sounds from the video are not by this script, Also blow-off and other sounds are not part of this asset as they are not intended to be.
+
 ² This script is also inspired by this video of the Turn10 Audio Engineer: <https://youtu.be/UNvka9GL-9k>. Same as Forza Horizon 3 or Forza Motorsport 7, it needs audio clips based on different rpm speeds. ```E.g Ferrari458Engine_Accelerating_at_the_rpm_speed_of_5000.wav``` and it needs at least one accelerating audio clip though very few and too many clips may result in subpar quality.
