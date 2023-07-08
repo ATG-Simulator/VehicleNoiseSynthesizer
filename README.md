@@ -40,6 +40,7 @@ An Enhanced FM4-Inspired Vehicle Sound Synthesizer
 :x: Does not respect engine piston cycle frequency for fading audio clips *Or in other words, it fades audio clips linearly smoothly which is not "always" good*
 
 :warning:***Why you better use FMOD plugins or paid assets instead?***
+
 Although this asset was done with the idea of using it in [my passion project ATG Simulator](https://ATG-Simulator.com), I would say the paid and Fmod ones might bring cleaner sounds and are easier to work with. 
 In fact, the original idea was published as a github repo - which unfortunately I lost its URL - to recreate a Forza Motorsport 4 type of audio simulation for cars. It was before FMod planned to have a free license for indie devs and hobbyists. That's why I took it and significantly re-wrote and enhanced it to support engine load, dynamic pitch and so. Although nowadays  FMod is a paid software that you can use for free, below is a list of assets and plugins that you can use instead of this one for your projects - the prices are valid at the time of writing this text:
 
@@ -50,13 +51,16 @@ In fact, the original idea was published as a github repo - which unfortunately 
  - Android App (Limited predefined audio files, Basic loop): [**RevHeadz** (Free but includes in-app purchases)](https://rev-headz.com/)
 
 :information_source: ***How to use it?***
+
 Either download the unitypackage or a zipped archive of this repo. And import them into a new Unity project. Note that this asset has a pair of demo scenes that need NWH Vehicle Physics and NWH Dynamic Water Physics. To be able to use any of the two demo scenes you will need to import the said assets into your project first, then import this GitHub project. You shall have none of the NWH assets, one of them or all of them to use this asset. Just study the codes which are commented line by line (if they were important for understanding the codes) and delete the scripts that are not related to your project  - e.g. NWH Input demo samples.
 
 :information_source: ***How does it work?***
-![How does this asset work, Simplified in an image.](https://raw.githubusercontent.com/ATG-Simulator/VehicleNoiseSynthesizer/main/Depiction.jpg)
+
+<img src="https://raw.githubusercontent.com/ATG-Simulator/VehicleNoiseSynthesizer/main/Depiction.jpg" alt="How does this asset work, Simplified in an image." width="65%">
 
 
 :information_source: ***Why the heck am I sharing this freely?***
+
 I think if you help the community you get more quality assets back not only for yourself but for others. So I expect people happily use this but also improve it and share an enhanced version of it with others.
 
 :copyright: Dan. The original script and its idea were inspired by several internet sources and GitHub Repositories like Keijiro Takahashi, CombatWombatZockchster, manueleisl, and others.
