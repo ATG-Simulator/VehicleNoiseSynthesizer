@@ -1,4 +1,4 @@
-# VehicleNoiseSynthesizer
+# Vehicle Noise Synthesizer
  VNS is an open-source free audio addon primarily designed for Unity to simulate vehicle sounds based on engine rpm similar to a granulator.
 
 
