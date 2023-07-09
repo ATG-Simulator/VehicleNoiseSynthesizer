@@ -42,6 +42,12 @@ An Enhanced FM4-Inspired Vehicle Sound Synthesizer
 
 :x: Does not respect engine piston cycle frequency for fading audio clips *Or in other words, it fades audio clips linearly smoothly which is not "always" good*
 
+🔁***How to loop?***
+
+These are useful to compose loop audio for your vehicle sound simulation.
+- Here it is described how to seamlessly loop audio using a free audio tool manually: https://gamedevbeginner.com/create-looping-sound-effects-for-games-for-free-with-audacity/
+- This one is even much easier, you don't need to download a tool, and is online but a bit more limited: https://www.drumbot.com/projects/looper/
+
 :warning:***Why you better use FMOD plugins or paid assets instead?***
 
 Although this asset was done with the idea of using it in [my passion project ATG Simulator](https://ATG-Simulator.com), I would say the paid and Fmod ones might bring cleaner sounds and are easier to work with. 
