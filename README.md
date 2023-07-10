@@ -57,6 +57,7 @@ In fact, the original idea was published as a github repo - which unfortunately 
  - Unity Asset: [**Realistic Engine Sounds** (from 23 US$ to  more than +260 USD)](https://assetstore.unity.com/packages/tools/audio/realistic-engine-sounds-2-pro-edition-224783)
  - Unity/Unreal/... Plugin: [**Crankcase Rev** (from 1,500 USD)](https://www.audiokinetic.com/en/products/plugins/crankcase-rev/)
  - DAW Plugin (Not for Game Engines): [**Igniter** (430 USD)](https://www.krotosaudio.com/igniter/)
+ - DAW Plugin (Not for Game Engines): [**Audio Motors**](https://lesound.io/product/audiomotors-pro/)
  - Standalone (Procedural Realistic Car Engine Sounds, CPU intensive): [**Engine Simulator** (Free)](https://www.engine-sim.parts/)
  - Android App (Limited predefined audio files, Basic loop): [**RevHeadz** (Free but includes in-app purchases)](https://rev-headz.com/)
 
