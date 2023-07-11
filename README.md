@@ -49,17 +49,18 @@ These are useful to compose loop audio for your vehicle sound simulation.
 - This one is even much easier, you don't need to download a tool, and is online but a bit more limited: https://www.drumbot.com/projects/looper/
 - This uses paid software to correct the pitch and make a cleaner seamless audio clip: https://youtu.be/1bnasSQbBqk
 
-:warning:***Why you better use FMOD plugins or paid assets instead?***
+:warning:***Alternatives?***
 
 Although this asset was done with the idea of using it in [my passion project ATG Simulator](https://ATG-Simulator.com), I would say the paid and Fmod ones might bring cleaner sounds and are easier to work with. 
 In fact, the original idea was published as a github repo - which unfortunately I lost its URL - to recreate a Forza Motorsport 4 type of audio simulation for cars. It was before FMod planned to have a free license for indie devs and hobbyists. That's why I took it and significantly re-wrote and enhanced it to support engine load, dynamic pitch and so. Although nowadays  FMod is a paid software that you can use for free, below is a list of assets and plugins that you can use instead of this one for your projects - the prices are valid at the time of writing this text:
 
- - Unity Asset: [**Realistic Engine Sounds** (from 23 US$ to  more than +260 USD)](https://assetstore.unity.com/packages/tools/audio/realistic-engine-sounds-2-pro-edition-224783)
+ - Unity Asset : [**Realistic Engine Sounds** (from 23 US$ to  more than +260 USD)](https://assetstore.unity.com/packages/tools/audio/realistic-engine-sounds-2-pro-edition-224783)
+ - FMOD Indie _(Free under some limitations, Needs your audio clips)_
  - Unity/Unreal/... Plugin: [**Crankcase Rev** (from 1,500 USD)](https://www.audiokinetic.com/en/products/plugins/crankcase-rev/)
- - DAW Plugin (Not for Game Engines): [**Igniter** (430 USD)](https://www.krotosaudio.com/igniter/)
- - DAW Plugin (Not for Game Engines): [**Audio Motors**](https://lesound.io/product/audiomotors-pro/)
- - Standalone (Procedural Realistic Car Engine Sounds, CPU intensive): [**Engine Simulator** (Free)](https://www.engine-sim.parts/)
- - Android App (Limited predefined audio files, Basic loop): [**RevHeadz** (Free but includes in-app purchases)](https://rev-headz.com/)
+ - DAW Plugin _(Not for Game Engines, Good for mixing both engine and exhaust sounds of one or two different vehicles)_: [**Igniter** (430 USD)](https://www.krotosaudio.com/igniter/)
+ - DAW Plugin _(Not for Game Engines, Recommended for engine sounds only)_: [**Audio Motors**](https://lesound.io/product/audiomotors-pro/)
+ - Standalone _(Procedural Realistic Car Engine Sounds, Very CPU intensive)_: [**Engine Simulator** (Free)](https://www.engine-sim.parts/)
+ - Android App _(Limited predefined audio files, Basic non-seamless loop)_: [**RevHeadz** (Free but includes in-app purchases)](https://rev-headz.com/)
 
 :information_source: ***How to use it?***
 
