@@ -59,6 +59,7 @@ In fact, the original idea was published as a github repo - which unfortunately 
  - Unity/Unreal/... Plugin: [**Crankcase Rev** (from 1,500 USD)](https://www.audiokinetic.com/en/products/plugins/crankcase-rev/)
  - DAW Plugin _(Can mix both engine and exhaust sounds of different vehicles)_: [**Igniter** (430 USD)](https://www.krotosaudio.com/igniter/)
  - DAW Plugin _(Recommended for engine sounds only)_: [**Audio Motors**](https://lesound.io/product/audiomotors-pro/)
+ - Unity Asset : [**Granular Synthesis for Engine Audio** (Free)](https://github.com/CombatWombatZockchster/Granular-Synthesis-for-Engine-Audio)
  - Unity/Unreal _(Procedural Engine Sounds)_: [**Nemisindo Engine** (44 USD)](https://assetstore.unity.com/packages/tools/audio/nemisindo-engine-procedural-sound-effects-222246) 
  - Standalone _(Procedural Realistic Car Sounds, Very CPU intensive)_: [**Engine Simulator** (Free)](https://www.engine-sim.parts/)
  - Android App _(Limited predefined audio files, Basic non-seamless loop)_: [**RevHeadz** (free but w/ in-app purchases)](https://rev-headz.com/)
