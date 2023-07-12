@@ -57,7 +57,7 @@ In fact, the original idea was published as a github repo - which unfortunately 
  - [FMOD Indie _(Free under some limitations, Needs your audio clips)_](https://www.fmod.com/download)
  - Unity Asset : [**Realistic Engine Sounds** (from 23 US$ to  more than +260 USD)](https://assetstore.unity.com/packages/tools/audio/realistic-engine-sounds-2-pro-edition-224783)
  - Unity/Unreal/... Plugin: [**Crankcase Rev** (from 1,500 USD)](https://www.audiokinetic.com/en/products/plugins/crankcase-rev/)
- - DAW Plugin _(Not for Game Engines, Good for mixing both engine and exhaust sounds of one or two different vehicles)_: [**Igniter** (430 USD)](https://www.krotosaudio.com/igniter/)
+ - DAW Plugin _(Not for Game Engines, Can mix both engine and exhaust sounds of different vehicles)_: [**Igniter** (430 USD)](https://www.krotosaudio.com/igniter/)
  - DAW Plugin _(Not for Game Engines, Recommended for engine sounds only)_: [**Audio Motors**](https://lesound.io/product/audiomotors-pro/)
  - Unity/Unreal _(Procedural Engine Sounds)_: [**Nemisindo Engine** (44 USD)](https://assetstore.unity.com/packages/tools/audio/nemisindo-engine-procedural-sound-effects-222246) 
  - Standalone _(Procedural Realistic Car Sounds, Very CPU intensive)_: [**Engine Simulator** (Free)](https://www.engine-sim.parts/)
