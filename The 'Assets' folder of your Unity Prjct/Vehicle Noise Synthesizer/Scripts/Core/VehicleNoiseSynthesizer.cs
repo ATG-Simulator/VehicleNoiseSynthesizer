@@ -1,4 +1,4 @@
-﻿/*
+/*
 Several GitHub repositories inspire this but I lost their URLs - Please contact me if you're one of them in case of needing to add your personal website or username as a credit.
 Written by ImDanOush (find me with this username @ImDanOush on IG, YT, TWTR,...) for "ATG Life Style and Vehicle Simulator" (@ATG_Simulator)
 This entirely is freeware, See the repository's license section for more info.
@@ -30,6 +30,7 @@ namespace AroundTheGroundSimulator
         [Range(0.007f, 1.00f)]
         public float masterVolume = 1;
 
+        public AudioSource audioSourceTemplate;
         public AudioMixerGroup mixer; // Audio Mixer Group assigned to the audio sources of this script - optional
         public MixerType mixerType;   // Which one of the three default types should be used? (see the audio mixer in the demo, there are Engine, Intake and Exhaust ones by default)
 
@@ -204,15 +205,6 @@ namespace AroundTheGroundSimulator
                 aC.SmoothTangents(i, 0);
             }
 
-            // This sample script below only setups and prepares the audio sources for the reverb effect - as if when you are far from a car and the sound it has would change. The actual reverb effect itself should be added to your project by yourself.
-            MasterReverbZoneController v;
-            if (GetComponentInParent<MasterReverbZoneController>() == null)
-            {
-                v = GetComponentInParent<Rigidbody>().gameObject.AddComponent<MasterReverbZoneController>();
-            }
-            else v = GetComponentInParent<MasterReverbZoneController>();
-            v.simulated = new List<AudioSource>();
-
             // Sets up audio sources for accelerating and decelerating sounds with some default values. Change the audio source properties here down below to your likings.
             foreach (var sound in acceleratingSounds)
             {
@@ -220,15 +212,14 @@ namespace AroundTheGroundSimulator
                 GameObject gameObject = new GameObject();
                 gameObject.transform.SetParent(T, false);
                 carSound = gameObject.AddComponent<AudioSource>();
-                v.simulated.Add(carSound);
                 carSound.playOnAwake = false;
-                carSound.reverbZoneMix = 0.9f;
+                carSound.reverbZoneMix = audioSourceTemplate.reverbZoneMix;
                 carSound.spatialBlend = 1;
-                carSound.dopplerLevel = 1f;
-                carSound.spread = 0;
-                carSound.rolloffMode = AudioRolloffMode.Logarithmic;
-                carSound.minDistance = 1f;
-                carSound.maxDistance = 150;
+                carSound.dopplerLevel = audioSourceTemplate.dopplerLevel;
+                carSound.spread = audioSourceTemplate.spread;
+                carSound.rolloffMode = audioSourceTemplate.rolloffMode;
+                carSound.minDistance = audioSourceTemplate.minDistance;
+                carSound.maxDistance = audioSourceTemplate.maxDistance;
                 gameObject.transform.parent = this.gameObject.transform;
                 gameObject.transform.localPosition = Vector3.zero;
                 carSound.transform.parent = T;
@@ -249,15 +240,14 @@ namespace AroundTheGroundSimulator
                 GameObject gameObject = new GameObject();
                 gameObject.transform.SetParent(T, false);
                 carSound = gameObject.AddComponent<AudioSource>();
-                v.simulated.Add(carSound);
                 carSound.playOnAwake = false;
-                carSound.reverbZoneMix = 0.9f;
+                carSound.reverbZoneMix = audioSourceTemplate.reverbZoneMix;
                 carSound.spatialBlend = 1;
-                carSound.dopplerLevel = 0.8f;
-                carSound.spread = 0;
-                carSound.rolloffMode = AudioRolloffMode.Logarithmic;
-                carSound.minDistance = 1f;
-                carSound.maxDistance = 150;
+                carSound.dopplerLevel = audioSourceTemplate.dopplerLevel;
+                carSound.spread = audioSourceTemplate.spread;
+                carSound.rolloffMode = audioSourceTemplate.rolloffMode;
+                carSound.minDistance = audioSourceTemplate.minDistance;
+                carSound.maxDistance = audioSourceTemplate.maxDistance;
                 gameObject.transform.parent = this.gameObject.transform;
                 gameObject.transform.localPosition = Vector3.zero;
                 carSound.transform.parent = T;
@@ -273,8 +263,6 @@ namespace AroundTheGroundSimulator
                 aLpf = gameObject.AddComponent<AudioLowPassFilter>();
                 aLpf.customCutoffCurve = aC;
             }
-            //
-            v.Process();
         }
 
         internal void TurnOn()
@@ -309,7 +297,7 @@ namespace AroundTheGroundSimulator
 
             _finalPitch = Mathf.Lerp(_finalPitch, (_rpm > _idleRpm + rpm_deviation ? (pitchConstant * (Mathf.Pow(((_rpm + 1) / (_maxRpm + 1)), 2) + 0.5f) + (load * pitchRange)) + minPitch : 1f), Time.deltaTime * transitionTime);
 
-            if (_nonDecelerateAudiosMode || load > 0.01f || (l_r < _rpm))
+            if (l_r + 75 < _rpm || _nonDecelerateAudiosMode || load > 0f)
             {
                 _finalAccVol = Mathf.Lerp(_finalAccVol, 1.0f, Time.deltaTime * transitionTime);
                 _finalDecVol = Mathf.Lerp(_finalDecVol, 0.0f, Time.deltaTime * transitionTime);
