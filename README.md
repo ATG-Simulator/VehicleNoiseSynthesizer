@@ -31,7 +31,7 @@ An Enhanced FM4-Inspired Vehicle Sound Synthesizer
 
 :white_check_mark:  Lightweight (Async Calculations - per fixed delta time)
 
-:white_check_mark:  Uses only Unity, Optionally supports Unity Audio Mixer - No FMOD needed
+:white_check_mark:  Uses only Unity, Optionally supports Unity Audio Mixer - No FMOD needed - Thus it's possible to build WebGL projects with.
 
 :white_check_mark:  Auto setups audio clips and procedural Audio Source creation make it user-friendly for modding
 
