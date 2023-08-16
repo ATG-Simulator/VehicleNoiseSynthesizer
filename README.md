@@ -98,4 +98,4 @@ Footnotes:
 
 ¹ This script is also inspired by this video of the Turn10 Audio Engineer: <https://youtu.be/UNvka9GL-9k>. Same as Forza Horizon 3 or Forza Motorsport 7, it needs audio clips based on different rpm speeds. ```E.g Ferrari458Engine_Accelerating_at_the_rpm_speed_of_5000.wav``` and it needs at least one accelerating audio clip though very few and too many clips may result in subpar quality.
 
-² In case you know the repository, feel free to let me know by adding a comment in the main GitHub repository so that I include it in the list.
+² In case you know the repository, feel free to let everyone know by adding a comment in the main GitHub repository.
