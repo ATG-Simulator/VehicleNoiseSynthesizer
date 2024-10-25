@@ -12,6 +12,11 @@ using System.Collections;
 
 namespace AroundTheGroundSimulator
 {
+<<<<<<< Updated upstream
+=======
+    [AddComponentMenu("ATG/Audio/Vehicle Noise Synthesizer")]
+    [HelpURL("https://github.com/ImDanOush/VehicleNoiseSynthesizer")]
+>>>>>>> Stashed changes
     public class VehicleNoiseSynthesizer : MonoBehaviour
     {
         // Control input manually
