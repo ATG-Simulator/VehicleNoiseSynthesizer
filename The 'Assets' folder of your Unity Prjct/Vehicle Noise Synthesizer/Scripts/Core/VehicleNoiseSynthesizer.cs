@@ -1,173 +1,261 @@
-/*
-Several GitHub repositories inspire this but I lost their URLs - Please contact me if you're one of them in case of needing to add your personal website or username as a credit.
-Written by ImDanOush (find me with this username @ImDanOush on IG, YT, TWTR,...) for "ATG Life Style and Vehicle Simulator" (@ATG_Simulator)
-This entirely is freeware, See the repository's license section for more info.
-*/
-
 using UnityEngine;
 using System.Collections.Generic;
 using UnityEngine.Audio;
-using System;
 using System.Collections;
-using static Unity.VisualScripting.Member;
 
 namespace AroundTheGroundSimulator
 {
+    [AddComponentMenu("ATG/Audio/Vehicle Noise Synthesizer")]
+    [RequireComponent(typeof(AudioSource))]
+    [HelpURL("https://github.com/ImDanOush/VehicleNoiseSynthesizer")]
     public class VehicleNoiseSynthesizer : MonoBehaviour
     {
-        // Control input manually
+        #region Debug Controls
+        [Header("Debug Controls")]
+        [Space(5)]
+        [Tooltip("Enable to manually control RPM and load values for testing")]
         public bool _debug = false;
-        [Range(100f, 9000f)]
-        public float debug_rpm = 800;
-        [Range(0.00f, 1.00f)]
-        public float debug_load = 1;
 
-        [Space(7f)]
-        [Header("Granulator Properties")]
-        [Space(7f)]
-        // Shift final Pitch for fine-tuning (Optional)
+        [Range(100f, 9000f)]
+        [Tooltip("Test RPM value when debug mode is enabled")]
+        public float debug_rpm = 800;
+
+        [Range(0.00f, 1.00f)]
+        [Tooltip("Test engine load value when debug mode is enabled")]
+        public float debug_load = 1;
+        #endregion
+
+        #region Core Audio Settings
+        [Header("Core Audio Settings")]
+        [Space(10)]
+        [Tooltip("Fine-tune the overall pitch of engine sounds")]
         public float shiftPitch = 0;
-        // Change final volume for fine-tuning (Optional)
+
         [Range(0.007f, 1.00f)]
+        [Tooltip("Master volume control for all engine sounds")]
         public float masterVolume = 1;
 
-        [Header("Engine Sound Curves")]
+        [Tooltip("Template AudioSource for copying base audio settings")]
+        public AudioSource audioSourceTemplate;
+
+        [Tooltip("Optional mixer group for audio routing")]
+        public AudioMixerGroup mixer;
+
+        [Tooltip("Type of engine sound (Intake, Engine, Exhaust, etc.)")]
+        public MixerType mixerType;
+
+        [Tooltip("RPM difference between consecutive audio clips")]
+        public int rpm_deviation = 1000;
+        #endregion
+
+        #region Sound Curves
+        [Header("Engine Sound Response Curves")]
+        [Space(10)]
+        [Tooltip("Controls how pitch changes with RPM (X: Normalized RPM, Y: Pitch multiplier)")]
         public AnimationCurve pitchCurve = new AnimationCurve(
             new Keyframe(0f, 0.6f),
             new Keyframe(1f, 1.2f)
         );
 
+        [Tooltip("Controls how volume changes with RPM (X: Normalized RPM, Y: Volume multiplier)")]
         public AnimationCurve volumeCurve = new AnimationCurve(
             new Keyframe(0f, 0.5f),
             new Keyframe(1f, 1f)
         );
+        #endregion
 
-        public AudioSource audioSourceTemplate;
-        public AudioMixerGroup mixer; // Audio Mixer Group assigned to the audio sources of this script - optional
-        public MixerType mixerType;   // Which one of the three default types should be used? (see the audio mixer in the demo, there are Engine, Intake and Exhaust ones by default)
-
-        public int rpm_deviation = 1000; // the constant difference of the rpm value of audio clips, e.g audio clip 1 has the audio of an engine at 1000 rpm, audio clip 2 has  has the audio of an engine at 2500 rpm. so the value should be close or a bit less than 1500
-
-        //
-
-        [Header("Audio Effect Curves")]
+        #region Audio Effect Settings
+        [Header("Audio Effects Configuration")]
+        [Space(10)]
+        [Tooltip("Controls distortion amount based on RPM and load")]
         public AnimationCurve distortionCurve = new AnimationCurve(
             new Keyframe(0f, 0f),
             new Keyframe(0.7f, 0.3f),
             new Keyframe(1f, 0.5f)
         );
 
-        [Header("Audio Effect Parameters")]
         [Range(0f, 1f)]
+        [Tooltip("Overall intensity of the distortion effect")]
         public float distortionIntensity = 0.5f;
+
         [Range(0f, 1f)]
+        [Tooltip("Intensity of the muffling effect when engine load decreases")]
         public float mufflingIntensity = 0.5f;
 
         [Header("Low Pass Filter")]
+        [Space(5)]
+        [Tooltip("Controls frequency cutoff based on load (X: Load, Y: Cutoff frequency)")]
         public AnimationCurve lowPassCurve = new AnimationCurve(
-            new Keyframe(1f, 1000f),  // Heavy filtering
-            new Keyframe(0f, 22000f)  // Full frequency range
+            new Keyframe(1f, 1000f),
+            new Keyframe(0f, 22000f)
         );
+
         [Range(0f, 1f)]
+        [Tooltip("Overall intensity of the low pass filter effect")]
         public float lowPassIntensity = 0.5f;
-
-        private AudioLowPassFilter[] acceleratingLowPass;
-        private AudioLowPassFilter[] deceleratingLowPass;
-        private AudioDistortionFilter[] acceleratingDistortion;
-        private AudioDistortionFilter[] deceleratingDistortion;
-
-        //
-
+        #endregion
+        #region Volume and Audio Clip Settings
         [System.Serializable]
         public class EngineAudioClipData
         {
+            [Tooltip("Audio clip containing engine sound")]
             public AudioClip audioClip;
-            public int rpmValue;
-        }
 
-        [Tooltip("Audio clips for engine acceleration with their respective RPM values")]
+            [Tooltip("RPM value at which this audio clip should play")]
+            [Range(0, 10000)]
+            public int rpmValue;
+
+            [Tooltip("Optional description for this audio clip")]
+            public string description;
+        }
+        [Header("Audio Clip Configuration")]
+        [Space(10)]
+        [SerializeField]
+        [Tooltip("List of audio clips for engine acceleration, each with its corresponding RPM value")]
         public List<EngineAudioClipData> acceleratingSounds = new List<EngineAudioClipData>();
-        [Tooltip("[Optional] Audio clips for engine deceleration with their respective RPM values")]
+
+        [SerializeField]
+        [Tooltip("Optional list of audio clips for engine deceleration, each with its corresponding RPM value")]
         public List<EngineAudioClipData> deceleratingSounds = new List<EngineAudioClipData>();
 
-        // Mimimum and Maximum values of volumes
-        [Tooltip("If there is no decelrating sound clips, the accelerating sound clip with the lowest RPM value is chosen and this will be its default volume when it is idle.")]
+        [Header("Volume Configuration")]
+        [Space(10)]
+        [Tooltip("Default volume when engine is idle (used when no deceleration clips are present)")]
         [Range(0.05f, 1.00f)]
         public float idleAccVolume = 0.1f;
-        [Tooltip("If max volume is set to 0 that means the audio volum is left as is.")]
+
+        [Tooltip("Maximum volume for acceleration sounds (0 means no limit)")]
         [Range(0.00f, 1.00f)]
         public float maxVolumeAcc = 0.4f;
+
+        [Tooltip("Maximum volume for deceleration sounds")]
         [Range(0.00f, 1.00f)]
         public float maxVolumeDcc = 0.1f;
 
-        [Space(7f)]
-        [Header("Advanced Granulator Properties")]
-        [Space(7f)]
-        // How smooth audioclips and their volume value can change?
+        [Header("Transition Settings")]
+        [Space(10)]
+        [Tooltip("How smoothly audio clips and volume changes occur")]
+        [Range(1f, 50f)]
         public float transitionTime = 20f;
-        // How smooth accelerating audioclips and their pitch value can change? suggested to use the same value as transitionTime.
+
+        [Tooltip("Smoothness of pitch changes during acceleration")]
+        [Range(1f, 50f)]
         public float acPitchTransitionTime = 20f;
-        // How smooth decelerating audioclips and their pitch value can change? suggested to use the same value as transitionTime.
+
+        [Tooltip("Smoothness of pitch changes during deceleration")]
+        [Range(1f, 50f)]
         public float dcPitchTransitionTime = 20f;
-        // Adjust the pitch of accelerating sound clip for fine-tuning
+        #endregion
+
+        #region Fine-Tuning Parameters
+        [Header("Fine-Tuning")]
+        [Space(10)]
+        [Tooltip("Fine-tune pitch for acceleration sounds")]
+        [Range(-1f, 1f)]
         public float acPitchTrim = 0;
-        // Adjust the pitch of accelerating sound clip for fine-tuning
+
+        [Tooltip("Fine-tune pitch for deceleration sounds")]
+        [Range(-1f, 1f)]
         public float dcPitchTrim = 0;
-        // Add random pitch
+
+        [Tooltip("Add random variation to pitch")]
         [Range(-0.060f, 0.060f)]
         public float rndmPitch = 0;
-        // Used for the table of pitches, if the maximum RPM of your engine is more than 10000 set it something more than that.
+
+        [Tooltip("Maximum theoretical RPM value for calculations")]
+        [Range(1000f, 20000f)]
         public float maximumTheoricalRPM = 10000;
+
+        [Tooltip("Base pitch value when engine is idle")]
+        [Range(0.5f, 2f)]
         public float idlePitch = 1;
+        #endregion
+        #region Internal State Variables
+        [Header("Internal State")]
+        [Space(10)]
+        [SerializeField]
+        [Tooltip("Current engine RPM")]
+        private float _rpm;
 
-        //[HideInInspector]
-        public float rpm
-        {
-            get; internal set;  // sets the rpm value based on one of the inputs like the provided "AudioGranulatorNWHVehiclePhysics2" class
-        }
-        //[HideInInspector]
-        public float load
-        {
-            get; internal set;  // sets the load value based on one of the inputs like the provided "AudioGranulatorNWHVehiclePhysics2" class
-        }
+        [SerializeField]
+        [Tooltip("Current engine load")]
+        private float _load;
 
-        [Space(47f)]
-        [Header("[Read-Only] Debug Values")]
-        [Space(7f)]
-        // Table of audio clip ranges for fading based on the rpm value
         [SerializeField]
-        float[] _AcMin_rTable;
-        [SerializeField]
-        float[] _AcNormal_rTable;
-        [SerializeField]
-        float[] _AcMax_rTable;
-        [SerializeField]
-        float[] _DcMin_rTable;
-        [SerializeField]
-        float[] _DcNormal_rTable;
-        [SerializeField]
-        float[] _DcMax_rTable;
-        [SerializeField]
-        bool _nonDecelerateAudiosMode = true;
-        [SerializeField]
-        float _rpm; // current engine rpm
-        [SerializeField]
-        float _load; // current engine load
-        [SerializeField]
-        float _maxRpm; // max rpm of the engine
-        [SerializeField]
-        float _RangeDivider = 1; // scale the range of which an audio clip fades out/in to another one per its audio clip type - accelerating/decelerating
+        [Tooltip("Maximum RPM of the engine")]
+        private float _maxRpm;
 
-        // used for calculations
-        bool _isOn = false; //is the car turned on?
-        float _idleRpm; // used for correcting idle audio volume level
-        float l_r; // the rpm value in previous frame
-        float _finalAccVol = 0; // values of audio clips when the vehicle is accelerating
-        float _finalDecVol = 0; // values of audio clips wheb the vehicle is decelerating
-        [SerializeField] float _finalPitch = 1f; // final raw pitch value
+        [SerializeField]
+        [Tooltip("Engine state (on/off)")]
+        private bool _isOn;
+
+        [SerializeField]
+        [Tooltip("Idle RPM value")]
+        private float _idleRpm;
+
+        [SerializeField]
+        [Tooltip("Previous frame RPM value")]
+        private float l_r;
+
+        [SerializeField]
+        [Tooltip("Final pitch value after all modifications")]
+        private float _finalPitch = 1f;
+
+        [SerializeField]
+        [Tooltip("Current volume for acceleration sounds")]
+        private float _finalAccVol = 0;
+
+        [SerializeField]
+        [Tooltip("Current volume for deceleration sounds")]
+        private float _finalDecVol = 0;
+        #endregion
+
+        #region Audio Processing Tables
+        [Header("Audio Processing Tables")]
+        [Space(10)]
+        [SerializeField]
+        [Tooltip("Minimum RPM values for acceleration clips")]
+        private float[] _AcMin_rTable;
+
+        [SerializeField]
+        [Tooltip("Normal RPM values for acceleration clips")]
+        private float[] _AcNormal_rTable;
+
+        [SerializeField]
+        [Tooltip("Maximum RPM values for acceleration clips")]
+        private float[] _AcMax_rTable;
+
+        [SerializeField]
+        [Tooltip("Minimum RPM values for deceleration clips")]
+        private float[] _DcMin_rTable;
+
+        [SerializeField]
+        [Tooltip("Normal RPM values for deceleration clips")]
+        private float[] _DcNormal_rTable;
+
+        [SerializeField]
+        [Tooltip("Maximum RPM values for deceleration clips")]
+        private float[] _DcMax_rTable;
+
+        [SerializeField]
+        [Tooltip("True if no deceleration audio clips are provided")]
+        private bool _nonDecelerateAudiosMode = true;
+
+        [SerializeField]
+        [Tooltip("Scale factor for audio clip fade ranges")]
+        private float _RangeDivider = 1;
+        #endregion
+
+        #region Audio Sources
         private List<AudioSource> _accelerateAudios;
         private List<AudioSource> _decelerateAudios;
-        float vol;
+        private float vol;
+        #endregion
+
+        #region Public Properties
+        public float rpm { get; internal set; }
+        public float load { get; internal set; }
+        #endregion
 
         public enum MixerType
         {
