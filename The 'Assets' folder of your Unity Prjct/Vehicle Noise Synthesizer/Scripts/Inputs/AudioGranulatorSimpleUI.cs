@@ -167,23 +167,26 @@ public class AudioGranulatorSimpleUI : MonoBehaviour
     private void UpdateAutoLoad()
     {
         float normalizedRPM = Mathf.InverseLerp(minRPM, maxRPM, currentRPM);
-        float targetAutoLoad;
+        float targetLoad;
 
-        if (rpmChangeRate > 0) // Accelerating
+        // Calculate RPM change
+        float rpmChangeThreshold = 50f; // Threshold to determine if RPM is "stable"
+
+        if (rpmChangeRate > rpmChangeThreshold) // RPM increasing
         {
-            targetAutoLoad = Mathf.Lerp(currentLoad, normalizedRPM, Time.deltaTime * loadResponseTime);
+            targetLoad = Mathf.Lerp(currentLoad, 1f, Time.deltaTime * loadResponseTime);
         }
-        else if (rpmChangeRate < -100) // Rapid deceleration
+        else if (rpmChangeRate < -rpmChangeThreshold) // RPM decreasing significantly
         {
-            targetAutoLoad = Mathf.Lerp(currentLoad, 0f, Time.deltaTime * loadResponseTime);
+            targetLoad = Mathf.Lerp(currentLoad, 0f, Time.deltaTime * loadResponseTime);
         }
-        else // Idle or slight deceleration
+        else // RPM stable - maintain load to simulate resistance
         {
-            targetAutoLoad = Mathf.Lerp(currentLoad, 0.2f, Time.deltaTime * loadResponseTime);
+            targetLoad = Mathf.Lerp(currentLoad, 0.85f, Time.deltaTime * loadResponseTime);
         }
 
-        currentLoad = Mathf.Clamp(targetAutoLoad, minLoad, maxLoad);
-        if (loadSlider != null) loadSlider.value = currentLoad;
+        currentLoad = Mathf.Clamp(targetLoad, minLoad, maxLoad);
+        loadSlider.value = currentLoad;
     }
 
     private void OnAutoLoadToggled(bool value)
