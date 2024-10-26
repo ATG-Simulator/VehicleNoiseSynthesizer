@@ -1,4 +1,3 @@
-/**************************************************************************************** Uncomment if NWH Installed
 using NWH.VehiclePhysics2;
 using System.Collections;
 using System.Collections.Generic;
@@ -37,4 +36,3 @@ namespace AroundTheGroundSimulator
         }
     }
 }
-*******************************************************************************************************************/
