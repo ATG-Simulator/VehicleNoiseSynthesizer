@@ -1,12 +1,5 @@
 # Vehicle Noise Synthesizer
  VNS is an open-source free audio addon primarily designed for Unity to simulate vehicle sounds based on engine rpm similar to a granulator without dependencies such as FMOD.
-
-[![Watch the video](https://cdn.discordapp.com/attachments/705004606425661552/1139956388550950922/image.png)](https://cdn.discordapp.com/attachments/890033761394241556/1139954515701936188/VNSNWHv1.0.mp4)
-
-[Demo 1 - Car](https://cdn.discordapp.com/attachments/1106252572521676890/1120682622973136996/VID_20230620_135154_906.mp4)
-
-[Demo 2 - Boat](https://cdn.discordapp.com/attachments/705004655394160740/1127147410230100038/NWHDWP2AudioSimTest.mp4)
-
 ```
 An Enhanced FM4-Inspired Vehicle Sound Synthesizer
 ```
@@ -33,7 +26,7 @@ An Enhanced FM4-Inspired Vehicle Sound Synthesizer
 
 :white_check_mark:  Uses only Unity, Optionally supports Unity Audio Mixer. Thus it's possible to build WebGL projects.
 
-:white_check_mark:  Auto setups audio clips and procedural Audio Source creation make it user-friendly for modding
+:white_check_mark:  Advanced additional parameters to fine-tune the audio effect.
 
 
 
