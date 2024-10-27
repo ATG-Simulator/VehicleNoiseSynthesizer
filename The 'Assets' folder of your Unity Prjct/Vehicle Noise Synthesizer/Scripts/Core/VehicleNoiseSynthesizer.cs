@@ -56,6 +56,9 @@ namespace AroundTheGroundSimulator
             new Keyframe(1f, 1.2f)
         );
 
+        [Tooltip("How many times the engine load can change the pitch?")]
+        public float loadEffectivenessOnPitch = 1;
+
         [Tooltip("Controls how volume changes with RPM (X: Normalized RPM, Y: Volume multiplier)")]
         public AnimationCurve volumeCurve = new AnimationCurve(
             new Keyframe(0f, 0.5f),
@@ -420,7 +423,9 @@ namespace AroundTheGroundSimulator
 
             float normalizedRPM = Mathf.InverseLerp(_idleRpm, _maxRpm, _rpm);
             float pitchMultiplier = pitchCurve.Evaluate(normalizedRPM);
-            _finalPitch = Mathf.Lerp(_finalPitch, (_rpm > _idleRpm + rpm_deviation ? pitchMultiplier : 1f), Time.deltaTime * transitionTime);
+            _finalPitch = Mathf.Lerp(_finalPitch, (_rpm > _idleRpm ? (load * loadEffectivenessOnPitch) + pitchMultiplier : idlePitch), Time.deltaTime * transitionTime);
+
+            float volumeMultiplier = volumeCurve.Evaluate(normalizedRPM);
 
             if (l_r + 75 < _rpm || _nonDecelerateAudiosMode || load > 0f)
             {
@@ -445,9 +450,8 @@ namespace AroundTheGroundSimulator
                     if (!_accelerateAudios[0].isPlaying)
                         _accelerateAudios[0].Play();
 
-                    float volumeMultiplier = volumeCurve.Evaluate(normalizedRPM);
                     if (maxVolumeAcc > 0)
-                        _accelerateAudios[0].volume = volumeMultiplier * Mathf.Clamp(volumeMultiplier + idleAccVolume, idleAccVolume, maxVolumeAcc) * masterVolume;
+                        _accelerateAudios[0].volume = Mathf.Clamp(volumeMultiplier * maxVolumeAcc, idleAccVolume, maxVolumeAcc) * masterVolume;
                     else
                         _accelerateAudios[0].volume = volumeMultiplier * masterVolume;
 
@@ -490,12 +494,11 @@ namespace AroundTheGroundSimulator
                         {
                             if (_rpm > 0)
                             {
-                                _accelerateAudios[i].pitch = Mathf.Lerp(_accelerateAudios[i].pitch, _rpm <= _idleRpm + rpm_deviation ? idlePitch : _finalPitch + shiftPitch + acPitchTrim, Time.deltaTime * (acPitchTransitionTime)) + rndmPitch;
+                                _accelerateAudios[i].pitch = Mathf.Lerp(_accelerateAudios[i].pitch, _finalPitch + shiftPitch + acPitchTrim, Time.deltaTime * (acPitchTransitionTime)) + rndmPitch;
 
-                                float volumeMultiplier = volumeCurve.Evaluate(normalizedRPM);
                                 if (maxVolumeAcc > 0)
                                 {
-                                    _accelerateAudios[i].volume = vol * Mathf.Clamp(volumeMultiplier + idleAccVolume, _decelerateAudios.Count == 0 ? (_rpm <= _idleRpm ? idleAccVolume : 0f) : 0f, maxVolumeAcc) * masterVolume;
+                                    _accelerateAudios[i].volume = vol * Mathf.Clamp(volumeMultiplier * maxVolumeAcc, _decelerateAudios.Count == 0 ? (_rpm <= _idleRpm ? idleAccVolume : 0f) : 0f, maxVolumeAcc) * masterVolume;
                                 }
                                 else
                                 {
@@ -546,14 +549,11 @@ namespace AroundTheGroundSimulator
                         {
                             if (_rpm > 0)
                             {
-                                _decelerateAudios[i].pitch = Mathf.Lerp(_decelerateAudios[i].pitch, _rpm <= _idleRpm + rpm_deviation ? idlePitch : _finalPitch + shiftPitch + dcPitchTrim, Time.deltaTime * (dcPitchTransitionTime)) + rndmPitch;
-
-                                normalizedRPM = Mathf.InverseLerp(_idleRpm, _maxRpm, _rpm);
-                                float volumeMultiplier = volumeCurve.Evaluate(normalizedRPM);
+                                _decelerateAudios[i].pitch = Mathf.Lerp(_decelerateAudios[i].pitch, _finalPitch + shiftPitch + dcPitchTrim, Time.deltaTime * (dcPitchTransitionTime)) + rndmPitch;
 
                                 if (maxVolumeDcc > 0)
                                 {
-                                    _decelerateAudios[i].volume = vol * Mathf.Clamp(volumeMultiplier + idleAccVolume, 0, maxVolumeDcc) * masterVolume;
+                                    _decelerateAudios[i].volume = vol * Mathf.Clamp(volumeMultiplier * maxVolumeDcc, 0, maxVolumeDcc) * masterVolume;
                                 }
                                 else
                                 {

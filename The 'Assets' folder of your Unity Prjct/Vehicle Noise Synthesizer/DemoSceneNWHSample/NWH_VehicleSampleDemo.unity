@@ -171,7 +171,7 @@ MonoBehaviour:
   _debug: 0
   debug_rpm: 7542
   debug_load: 0.142
-  shiftPitch: 0.2
+  shiftPitch: 0.33
   masterVolume: 1
   audioSourceTemplate: {fileID: 2049095924}
   mixer: {fileID: 243715708499536082, guid: 4a45b12b36d160c41be1eea83586fbe7, type: 2}
@@ -219,12 +219,13 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
+  loadEffectivenessOnPitch: 0.25
   volumeCurve:
     serializedVersion: 2
     m_Curve:
     - serializedVersion: 3
       time: 0.0063708113
-      value: 0
+      value: 0.5
       inSlope: -0.010929396
       outSlope: -0.010929396
       tangentMode: 0
@@ -242,7 +243,7 @@ MonoBehaviour:
       outWeight: 0.41763476
     - serializedVersion: 3
       time: 0.83815485
-      value: 0.66831845
+      value: 0.68824595
       inSlope: 0.048279203
       outSlope: 0.048279203
       tangentMode: 0
@@ -252,11 +253,11 @@ MonoBehaviour:
     - serializedVersion: 3
       time: 0.9937686
       value: 1
-      inSlope: 14.774418
-      outSlope: 14.774418
+      inSlope: 5.4705787
+      outSlope: 5.4705787
       tangentMode: 0
       weightedMode: 0
-      inWeight: 0.040973432
+      inWeight: 0.05100727
       outWeight: 0
     m_PreInfinity: 2
     m_PostInfinity: 2

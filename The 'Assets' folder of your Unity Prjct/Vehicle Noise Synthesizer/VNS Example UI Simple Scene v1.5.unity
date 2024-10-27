@@ -170,7 +170,7 @@ GameObject:
   - component: {fileID: 79352547}
   - component: {fileID: 79352546}
   m_Layer: 0
-  m_Name: VNS
+  m_Name: VNS - Many Accelerating Audio Clips Example
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -246,6 +246,7 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
+  loadEffectivenessOnPitch: 0.5
   volumeCurve:
     serializedVersion: 2
     m_Curve:
@@ -1099,7 +1100,7 @@ GameObject:
   m_Component:
   - component: {fileID: 955183892}
   m_Layer: 0
-  m_Name: ______________
+  m_Name: _
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
