@@ -2,6 +2,7 @@ using UnityEngine;
 using System.Collections.Generic;
 using UnityEngine.Audio;
 using System.Collections;
+using System.Linq;
 
 namespace AroundTheGroundSimulator
 {
@@ -28,11 +29,25 @@ namespace AroundTheGroundSimulator
         [Header("Core Audio Settings")]
         [Space(10)]
         [Tooltip("Fine-tune the overall pitch of engine sounds")]
-        public float shiftPitch = 0;
+        public float targetedShiftPitch = 0;
+
+        [HideInInspector]
+        public float shiftPitchOsc = 0; // used for the NWH Input for the pitch osc sim
 
         [Range(0.007f, 1.00f)]
         [Tooltip("Master volume control for all engine sounds")]
         public float masterVolume = 1;
+
+        [Range(0.000f, 1.00f)]
+        public float loadVolumeAccChangerFactor = 1;
+
+        [Range(0.000f, 1.00f)]
+        public float loadVolumeDccChangerFactor = 1;
+
+        [Range(0.00f, 0.99f)]
+        public float loadVolumeChangerMinValue = 1;
+
+        public bool autoBlip = true;
 
         [Tooltip("Template AudioSource for copying base audio settings")]
         public AudioSource audioSourceTemplate;
@@ -110,6 +125,42 @@ namespace AroundTheGroundSimulator
             [Tooltip("Optional description for this audio clip")]
             public string description;
         }
+
+        /// /////////////////////////////////////////////////////////
+
+        [Header("Exhaust Burble Configuration")]
+        [Space(10)]
+        [Tooltip("Enable exhaust burble/overrun effect")]
+        public bool enableExhaustBurble = true;
+
+        [Tooltip("Audio clips for exhaust burble/overrun sounds")]
+        public AudioClip[] burbleSounds;
+
+        [Range(0f, 1f)]
+        [Tooltip("Master volume for burble sounds")]
+        public float burbleVolume = 0.7f;
+
+        [Tooltip("Minimum RPM required for burble to occur")]
+        public float burbleMinRPM = 3500f;
+
+        [Range(0f, 1f)]
+        [Tooltip("How quickly load must drop to trigger burble")]
+        public float burbleLoadThreshold = 0.3f;
+
+        [Range(0f, 1f)]
+        [Tooltip("Chance of burble occurring when conditions are met")]
+        public float burbleProbability = 0.7f;
+
+        [Range(0.01f, 0.5f)]
+        [Tooltip("Minimum delay between burble sounds")]
+        public float minBurbleDelay = 0.05f;
+
+        [Range(0.05f, 1f)]
+        [Tooltip("Maximum delay between burble sounds")]
+        public float maxBurbleDelay = 0.2f;
+
+        /// /////////////////////////////////////////////////////////
+
         [Header("Audio Clip Configuration")]
         [Space(10)]
         [SerializeField]
@@ -122,23 +173,31 @@ namespace AroundTheGroundSimulator
 
         [Header("Volume Configuration")]
         [Space(10)]
-        [Tooltip("Default volume when engine is idle (used when no deceleration clips are present)")]
+        [Tooltip("Default volume when engine is idle")]
         [Range(0.05f, 1.00f)]
-        public float idleAccVolume = 0.1f;
+        public float idleVolume = 0.1f;
 
         [Tooltip("Maximum volume for acceleration sounds (0 means no limit)")]
-        [Range(0.00f, 1.00f)]
+        [Range(0.00f, 2.00f)]
         public float maxVolumeAcc = 0.4f;
 
         [Tooltip("Maximum volume for deceleration sounds")]
-        [Range(0.00f, 1.00f)]
+        [Range(0.00f, 2.00f)]
         public float maxVolumeDcc = 0.1f;
 
         [Header("Transition Settings")]
         [Space(10)]
-        [Tooltip("How smoothly audio clips and volume changes occur")]
-        [Range(1f, 50f)]
-        public float transitionTime = 20f;
+        [Tooltip("How smoothly audio clips' volume changes occur")]
+        [Range(0.1f, 50f)]
+        public float volTransitionTime = 20f;
+
+        [Tooltip("How smoothly audio clips' pitch changes occur")]
+        [Range(0.1f, 50f)]
+        public float pitchTransitionTime = 20f;
+
+        [Tooltip("How smoothly wngine load change occurs")]
+        [Range(0.1f, 50f)]
+        public float loadTransitionTime = 20f;
 
         [Tooltip("Smoothness of pitch changes during acceleration")]
         [Range(1f, 50f)]
@@ -171,6 +230,15 @@ namespace AroundTheGroundSimulator
         [Tooltip("Base pitch value when engine is idle")]
         [Range(0.5f, 2f)]
         public float idlePitch = 1;
+
+        [Header("Sound Adjustment")]
+        public float bassInput = 20000f;
+        public float trebleInput = 20f;
+        public float resonanceInput = 0f;
+        public float midrangeInput = 0f;
+        public float distortionInput = 0f;
+        public float flangerInput = 0f;
+        public float flangerRate = 0f;
         #endregion
         #region Internal State Variables
         [Header("Internal State")]
@@ -251,7 +319,6 @@ namespace AroundTheGroundSimulator
         #region Audio Sources
         private List<AudioSource> _accelerateAudios;
         private List<AudioSource> _decelerateAudios;
-        private float vol;
         #endregion
 
         #region Public Properties
@@ -259,6 +326,15 @@ namespace AroundTheGroundSimulator
         public float load { get; internal set; }
         #endregion
 
+        private float lastLoad;
+        private float lastBurbleTime;
+        private List<AudioSource> burbleAudioSources;
+        private const int BURBLE_AUDIO_POOL_SIZE = 5;
+        private float vol;
+        private AudioLowPassFilter[] lowPassFilters;
+        private AudioHighPassFilter[] highPassFilters;
+        private AudioDistortionFilter[] distortionFilters;
+        private AudioChorusFilter[] flangerFilters;
         public enum MixerType
         {
             Intake,
@@ -393,6 +469,39 @@ namespace AroundTheGroundSimulator
                 _decelerateAudios.Add(carSound);
                 AddAudioEffects(carSound);
             }
+
+            InitializeAudioFilters();
+            InitializeBurbleAudioSources();
+        }
+
+        private void InitializeBurbleAudioSources()
+        {
+            burbleAudioSources = new List<AudioSource>();
+            Transform burbleContainer = new GameObject("Burble Sources").transform;
+            burbleContainer.SetParent(transform, false);
+
+            for (int i = 0; i < BURBLE_AUDIO_POOL_SIZE; i++)
+            {
+                GameObject burbleObj = new GameObject($"Burble Source {i}");
+                burbleObj.transform.SetParent(burbleContainer, false);
+                AudioSource burbleSource = burbleObj.AddComponent<AudioSource>();
+
+                // Copy settings from template
+                burbleSource.playOnAwake = false;
+                burbleSource.loop = false;
+                burbleSource.priority = 136;
+                burbleSource.spatialBlend = audioSourceTemplate.spatialBlend;
+                burbleSource.dopplerLevel = audioSourceTemplate.dopplerLevel;
+                burbleSource.spread = audioSourceTemplate.spread;
+                burbleSource.rolloffMode = audioSourceTemplate.rolloffMode;
+                burbleSource.minDistance = 5f;
+                burbleSource.maxDistance = 500f;
+
+                if (mixer)
+                    burbleSource.outputAudioMixerGroup = mixer;
+
+                burbleAudioSources.Add(burbleSource);
+            }
         }
 
         private void AddAudioEffects(AudioSource source)
@@ -423,19 +532,19 @@ namespace AroundTheGroundSimulator
 
             float normalizedRPM = Mathf.InverseLerp(_idleRpm, _maxRpm, _rpm);
             float pitchMultiplier = pitchCurve.Evaluate(normalizedRPM);
-            _finalPitch = Mathf.Lerp(_finalPitch, (_rpm > _idleRpm ? (load * loadEffectivenessOnPitch) + pitchMultiplier : idlePitch), Time.deltaTime * transitionTime);
+            _finalPitch = Mathf.Lerp(_finalPitch, (_rpm > _idleRpm + 75 ? (load * loadEffectivenessOnPitch) + pitchMultiplier : idlePitch), Time.deltaTime * pitchTransitionTime);
 
             float volumeMultiplier = volumeCurve.Evaluate(normalizedRPM);
 
-            if (l_r + 75 < _rpm || _nonDecelerateAudiosMode || load > 0f)
+            if (l_r + 75 < _rpm && autoBlip || _nonDecelerateAudiosMode || load > 0f)
             {
-                _finalAccVol = Mathf.Lerp(_finalAccVol, 1.0f, Time.deltaTime * transitionTime);
-                _finalDecVol = Mathf.Lerp(_finalDecVol, 0.0f, Time.deltaTime * transitionTime);
+                _finalAccVol = Mathf.Lerp(_finalAccVol, 1.0f, Time.deltaTime * volTransitionTime);
+                _finalDecVol = Mathf.Lerp(_finalDecVol, 0.0f, Time.deltaTime * volTransitionTime);
             }
             else
             {
-                _finalAccVol = Mathf.Lerp(_finalAccVol, 0.0f, Time.deltaTime * transitionTime);
-                _finalDecVol = Mathf.Lerp(_finalDecVol, 1.0f, Time.deltaTime * transitionTime);
+                _finalAccVol = Mathf.Lerp(_finalAccVol, 0.0f, Time.deltaTime * volTransitionTime);
+                _finalDecVol = Mathf.Lerp(_finalDecVol, 1.0f, Time.deltaTime * volTransitionTime);
             }
 
             if (_accelerateAudios.Count == 1) // Calculation for when only one audio clip is used
@@ -451,11 +560,11 @@ namespace AroundTheGroundSimulator
                         _accelerateAudios[0].Play();
 
                     if (maxVolumeAcc > 0)
-                        _accelerateAudios[0].volume = Mathf.Clamp(volumeMultiplier * maxVolumeAcc, idleAccVolume, maxVolumeAcc) * masterVolume;
+                        _accelerateAudios[0].volume = Mathf.Clamp(volumeMultiplier * maxVolumeAcc * masterVolume * (Mathf.Lerp(Mathf.Max(load, loadVolumeChangerMinValue), 1, 1 - loadVolumeAccChangerFactor)), _rpm <= idleVolume ? _idleRpm : 0,maxVolumeAcc);
                     else
-                        _accelerateAudios[0].volume = volumeMultiplier * masterVolume;
+                        _accelerateAudios[0].volume = volumeMultiplier * masterVolume * (Mathf.Lerp(Mathf.Max(load, loadVolumeChangerMinValue), 1, 1 - loadVolumeAccChangerFactor));
 
-                    _accelerateAudios[0].pitch = Mathf.Lerp(_accelerateAudios[0].pitch, _finalPitch + shiftPitch + acPitchTrim, Time.deltaTime * (acPitchTransitionTime)) + rndmPitch;
+                    _accelerateAudios[0].pitch = Mathf.Lerp(_accelerateAudios[0].pitch, shiftPitchOsc + _finalPitch + targetedShiftPitch + acPitchTrim, Time.deltaTime * (acPitchTransitionTime)) + rndmPitch;
                     ApplyAudioEffects(_accelerateAudios[0], normalizedRPM, load);
                 }
             }
@@ -490,15 +599,16 @@ namespace AroundTheGroundSimulator
                             float Reduced_r = _rpm - _AcMax_rTable[i];
                             vol = (_finalAccVol) * (1 - Reduced_r / Range);
                         }
+                        vol *= Mathf.Lerp(Mathf.Max(load, loadVolumeChangerMinValue), 1, 1 - loadVolumeAccChangerFactor);
                         if (!_accelerateAudios[i].mute)
                         {
                             if (_rpm > 0)
                             {
-                                _accelerateAudios[i].pitch = Mathf.Lerp(_accelerateAudios[i].pitch, _finalPitch + shiftPitch + acPitchTrim, Time.deltaTime * (acPitchTransitionTime)) + rndmPitch;
+                                _accelerateAudios[i].pitch = Mathf.Lerp(_accelerateAudios[i].pitch, shiftPitchOsc + _finalPitch + targetedShiftPitch + acPitchTrim, Time.deltaTime * (acPitchTransitionTime)) + rndmPitch;
 
                                 if (maxVolumeAcc > 0)
                                 {
-                                    _accelerateAudios[i].volume = vol * Mathf.Clamp(volumeMultiplier * maxVolumeAcc, _decelerateAudios.Count == 0 ? (_rpm <= _idleRpm ? idleAccVolume : 0f) : 0f, maxVolumeAcc) * masterVolume;
+                                    _accelerateAudios[i].volume = Mathf.Clamp(vol * volumeMultiplier * masterVolume, _rpm <= idleVolume ? _idleRpm : 0, maxVolumeAcc);
                                 }
                                 else
                                 {
@@ -545,15 +655,16 @@ namespace AroundTheGroundSimulator
                             float Reduced_r = _rpm - _DcMax_rTable[i];
                             vol = (_finalDecVol) * (1 - Reduced_r / Range);
                         }
+                        vol *= Mathf.Lerp(Mathf.Max(load, loadVolumeChangerMinValue), 1, 1 - loadVolumeDccChangerFactor);
                         if (!_decelerateAudios[i].mute)
                         {
-                            if (_rpm > 0)
+                            if (_rpm > 150)
                             {
-                                _decelerateAudios[i].pitch = Mathf.Lerp(_decelerateAudios[i].pitch, _finalPitch + shiftPitch + dcPitchTrim, Time.deltaTime * (dcPitchTransitionTime)) + rndmPitch;
-
+                                _decelerateAudios[i].pitch = Mathf.Lerp(_decelerateAudios[i].pitch, shiftPitchOsc + (_finalPitch - pitchMultiplier) + targetedShiftPitch + dcPitchTrim, Time.deltaTime * (dcPitchTransitionTime)) + rndmPitch;
+                                
                                 if (maxVolumeDcc > 0)
                                 {
-                                    _decelerateAudios[i].volume = vol * Mathf.Clamp(volumeMultiplier * maxVolumeDcc, 0, maxVolumeDcc) * masterVolume;
+                                    _decelerateAudios[i].volume = Mathf.Clamp(vol * volumeMultiplier * masterVolume, _rpm <= idleVolume ? _idleRpm : 0,maxVolumeDcc);
                                 }
                                 else
                                 {
@@ -566,7 +677,7 @@ namespace AroundTheGroundSimulator
                             else
                                 _decelerateAudios[i].volume = 0;
                         }
-                        ApplyAudioEffects(_accelerateAudios[i], normalizedRPM, load);
+                        ApplyAudioEffects(_decelerateAudios[i], normalizedRPM, load);
                     }
                 }
             }
@@ -577,16 +688,21 @@ namespace AroundTheGroundSimulator
         {
             while (true)
             {
+
                 // use debug boolean to manually check the granulator
                 if (_debug)
                 {
+                    // Smooth the load
+                    _load = _nonDecelerateAudiosMode ? Mathf.Lerp(_load, debug_load, Time.deltaTime * loadTransitionTime) : debug_load > 0 ? Mathf.Lerp(_load, debug_load, Time.deltaTime * loadTransitionTime) : debug_load;
+
                     _rpm = debug_rpm;
-                    _load = debug_load;
                 }
                 else
                 {
+                    // Smooth the load
+                    _load = _nonDecelerateAudiosMode ? Mathf.Lerp(_load, load, Time.deltaTime * loadTransitionTime) : load > 0 ? Mathf.Lerp(_load, load, Time.deltaTime * loadTransitionTime) : load;
+
                     _rpm = rpm;
-                    _load = load;
                 }
 
                 if (!_nonDecelerateAudiosMode)
@@ -596,10 +712,53 @@ namespace AroundTheGroundSimulator
                 else
                     CalcVolPitchAcDc(_load, false);
 
+                HandleExhaustBurble();
+
                 yield return new WaitForSeconds(Time.fixedDeltaTime);
             }
         }
 
+        private void HandleExhaustBurble()
+        {
+            if (!enableExhaustBurble || burbleSounds == null || burbleSounds.Length == 0)
+                return;
+
+            float loadDelta = lastLoad - _load;
+            float currentTime = Time.time;
+
+            // Check conditions for burble
+            bool canBurble = _rpm >= burbleMinRPM &&
+                             loadDelta >= burbleLoadThreshold &&
+                             currentTime - lastBurbleTime >= minBurbleDelay &&
+                             _isOn;
+
+            if (canBurble && Random.value <= burbleProbability)
+            {
+                // Find available audio source
+                AudioSource burbleSource = burbleAudioSources.FirstOrDefault(s => !s.isPlaying);
+                if (burbleSource != null)
+                {
+                    // Select random burble sound
+                    burbleSource.clip = burbleSounds[Random.Range(0, burbleSounds.Length)];
+
+                    // Calculate volume and pitch based on conditions
+                    float rpmFactor = Mathf.InverseLerp(burbleMinRPM, _maxRpm, _rpm);
+                    float loadDeltaFactor = Mathf.Clamp01(loadDelta / burbleLoadThreshold);
+
+                    burbleSource.volume = burbleVolume * Mathf.Lerp(0.5f, 1f, rpmFactor) *
+                                        Mathf.Lerp(0.7f, 1f, loadDeltaFactor);
+
+                    // Vary pitch slightly
+                    burbleSource.pitch = Mathf.Lerp(0.9f, 1.1f, rpmFactor) +
+                                       Random.Range(-0.1f, 0.1f);
+
+                    burbleSource.Play();
+                    lastBurbleTime = currentTime;
+                }
+            }
+
+            lastLoad = _load;
+        }
         private void ApplyAudioEffects(AudioSource source, float normalizedRPM, float load)
         {
             // Get the audio effect components
@@ -633,5 +792,81 @@ namespace AroundTheGroundSimulator
             TurnOff();
             StopCoroutine(CalculateAsync());
         }
+
+        private void InitializeAudioFilters()
+        {
+            int totalAudioSources = _accelerateAudios.Count + _decelerateAudios.Count;
+            lowPassFilters = new AudioLowPassFilter[totalAudioSources];
+            highPassFilters = new AudioHighPassFilter[totalAudioSources];
+            distortionFilters = new AudioDistortionFilter[totalAudioSources];
+            flangerFilters = new AudioChorusFilter[totalAudioSources];
+
+            for (int i = 0; i < _accelerateAudios.Count; i++)
+            {
+                GameObject audioObj = _accelerateAudios[i].gameObject;
+                InitializeFiltersForAudioSource(audioObj, i);
+            }
+
+            for (int i = 0; i < _decelerateAudios.Count; i++)
+            {
+                int index = i + _accelerateAudios.Count;
+                GameObject audioObj = _decelerateAudios[i].gameObject;
+                InitializeFiltersForAudioSource(audioObj, index);
+            }
+
+            // Apply audio filters
+            ApplyAudioFilters();
+        }
+
+        private void InitializeFiltersForAudioSource(GameObject audioObj, int index)
+        {
+            lowPassFilters[index] = GetOrAddComponent<AudioLowPassFilter>(audioObj);
+            lowPassFilters[index].cutoffFrequency = 10;
+            highPassFilters[index] = GetOrAddComponent<AudioHighPassFilter>(audioObj);
+            highPassFilters[index].cutoffFrequency = 22000;
+            distortionFilters[index] = GetOrAddComponent<AudioDistortionFilter>(audioObj);
+            distortionFilters[index].distortionLevel = 0;
+            flangerFilters[index] = GetOrAddComponent<AudioChorusFilter>(audioObj);
+            flangerFilters[index].depth = 0;
+        }
+
+        private T GetOrAddComponent<T>(GameObject obj) where T : Component
+        {
+            T component = obj.GetComponent<T>();
+            if (component == null)
+            {
+                component = obj.AddComponent<T>();
+            }
+            return component;
+        }
+
+        public void ApplyAudioFilters()
+        {
+            for (int i = 0; i < (lowPassFilters?.Length ?? 0); i++)
+            {
+                if (lowPassFilters[i] != null)
+                {
+                    lowPassFilters[i].cutoffFrequency = bassInput;
+                    lowPassFilters[i].lowpassResonanceQ = resonanceInput;
+                }
+
+                if (highPassFilters[i] != null)
+                {
+                    highPassFilters[i].cutoffFrequency = trebleInput;
+                }
+
+                if (distortionFilters[i] != null)
+                {
+                    distortionFilters[i].distortionLevel = distortionInput;
+                }
+
+                if (flangerFilters[i] != null)
+                {
+                    flangerFilters[i].depth = flangerInput;
+                    flangerFilters[i].rate = flangerRate;
+                }
+            }
+        }
+
     }
 }
