@@ -1,5 +1,5 @@
 # Vehicle Noise Synthesizer
-##ATTENTION: 
+## ATTENTION: 
 1) The latest update has not been exported as a UnityPackage, for having the latest version, do not get the release versions but simply clone the repo!!
 2) The Red Sports Car Demo for the NWH Vehicle Physics 2 scene is not properly set up and therefore outputs subpar audio!!!
 3) If you do not own an NWH Physics asset for your project, simply delete the two related scripts in the Input folder!
