@@ -1,4 +1,9 @@
 # Vehicle Noise Synthesizer
+##ATTENTION: 
+1) The latest update has not been exported as a UnityPackage, for having the latest version, do not get the release versions but simply clone the repo!!
+2) The Red Sports Car Demo for the NWH Vehicle Physics 2 scene is not properly set up and therefore outputs subpar audio!!!
+3) If you do not own an NWH Physics asset for your project, simply delete the two related scripts in the Input folder!
+
  VNS is an open-source free audio addon primarily designed for Unity to simulate vehicle sounds based on engine rpm similar to a granulator without dependencies such as FMOD.
  ![{ADC15B13-CDF1-412F-A49A-F42651C76447}](https://github.com/user-attachments/assets/f12cac05-6ac5-4c41-8234-d67f64bf8363)
 ```
