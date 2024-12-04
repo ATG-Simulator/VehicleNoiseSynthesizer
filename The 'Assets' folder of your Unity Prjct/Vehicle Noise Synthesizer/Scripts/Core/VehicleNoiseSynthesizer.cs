@@ -122,6 +122,14 @@ namespace AroundTheGroundSimulator
             [Range(0, 10000)]
             public int rpmValue;
 
+            [Tooltip("Volume Offset")]
+            [Range(-1.0f, 1.0f)]
+            public float volumeOffset;
+
+            [Tooltip("Pitch Offset")]
+            [Range(-1.0f, 1.0f)]
+            public float pitchOffset;
+
             [Tooltip("Optional description for this audio clip")]
             public string description;
         }
@@ -212,11 +220,11 @@ namespace AroundTheGroundSimulator
         [Header("Fine-Tuning")]
         [Space(10)]
         [Tooltip("Fine-tune pitch for acceleration sounds")]
-        [Range(-1f, 1f)]
+        [Range(-1.0f, 1.0f)]
         public float acPitchTrim = 0;
 
         [Tooltip("Fine-tune pitch for deceleration sounds")]
-        [Range(-1f, 1f)]
+        [Range(-1.0f, 1.0f)]
         public float dcPitchTrim = 0;
 
         [Tooltip("Add random variation to pitch")]
@@ -307,6 +315,11 @@ namespace AroundTheGroundSimulator
         [Tooltip("Maximum RPM values for deceleration clips")]
         private float[] _DcMax_rTable;
 
+        private float[] _DcvTable;
+        private float[] _AcvTable;
+        private float[] _DcpTable;
+        private float[] _AcpTable;
+
         [SerializeField]
         [Tooltip("True if no deceleration audio clips are provided")]
         private bool _nonDecelerateAudiosMode = true;
@@ -350,6 +363,11 @@ namespace AroundTheGroundSimulator
             _idleRpm = idleRpm;
 
 
+            _AcpTable = new float[acceleratingSounds.Count];
+            _AcvTable = new float[acceleratingSounds.Count];
+            _DcpTable = new float[deceleratingSounds.Count];
+            _DcvTable = new float[deceleratingSounds.Count];
+
             // one-time process to prepare and load audio clips
             _nonDecelerateAudiosMode = true;
             int counter = 0;
@@ -357,6 +375,8 @@ namespace AroundTheGroundSimulator
             foreach (EngineAudioClipData item in acceleratingSounds)
             {
                 _AcNormal_rTable[counter] = item.rpmValue;
+                _AcpTable[counter] = item.pitchOffset;
+                _AcvTable[counter] = item.volumeOffset;
                 counter++;
             }
             counter = 0;
@@ -364,6 +384,8 @@ namespace AroundTheGroundSimulator
             foreach (EngineAudioClipData item in deceleratingSounds)
             {
                 _DcNormal_rTable[counter] = item.rpmValue;
+                _DcpTable[counter] = item.pitchOffset;
+                _DcvTable[counter] = item.volumeOffset;
                 counter++;
             }
             // if no decelerating audio clips are provided - like for vehicle engine and vehicle engine intake sounds - then this changes the script behavior accordingly
@@ -566,6 +588,9 @@ namespace AroundTheGroundSimulator
 
                     _accelerateAudios[0].pitch = Mathf.Lerp(_accelerateAudios[0].pitch, shiftPitchOsc + _finalPitch + targetedShiftPitch + acPitchTrim, Time.deltaTime * (acPitchTransitionTime)) + rndmPitch;
                     ApplyAudioEffects(_accelerateAudios[0], normalizedRPM, load);
+
+                    _accelerateAudios[0].volume += _AcvTable[0];
+                    _accelerateAudios[0].pitch += _AcpTable[0];
                 }
             }
             else // Calculation for when either both audio clip types are used or more than one accelerating sound clip is used
@@ -616,6 +641,9 @@ namespace AroundTheGroundSimulator
                                 }
                                 if (!_accelerateAudios[i].isPlaying)
                                     _accelerateAudios[i].Play();
+
+                                _accelerateAudios[i].volume += _AcvTable[i];
+                                _accelerateAudios[i].pitch += _AcpTable[i];
                             }
                             else
                                 _accelerateAudios[i].volume = 0;
@@ -673,6 +701,9 @@ namespace AroundTheGroundSimulator
 
                                 if (!_decelerateAudios[i].isPlaying)
                                     _decelerateAudios[i].Play();
+
+                                _decelerateAudios[i].volume += _DcvTable[i];
+                                _decelerateAudios[i].pitch += _DcpTable[i];
                             }
                             else
                                 _decelerateAudios[i].volume = 0;

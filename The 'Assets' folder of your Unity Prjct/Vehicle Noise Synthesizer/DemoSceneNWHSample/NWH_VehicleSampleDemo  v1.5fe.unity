@@ -131,7 +131,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 270443612}
-  - component: {fileID: 270443613}
+  - component: {fileID: 270443615}
   - component: {fileID: 270443614}
   m_Layer: 0
   m_Name: exhustSimTestObj
@@ -156,238 +156,6 @@ Transform:
   - {fileID: 2049095923}
   m_Father: {fileID: 1531906835}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &270443613
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 270443611}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 62a2c473214bb2a458b517d6fbffa685, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  _debug: 0
-  debug_rpm: 7542
-  debug_load: 0.142
-  shiftPitch: 0.33
-  masterVolume: 1
-  audioSourceTemplate: {fileID: 2049095924}
-  mixer: {fileID: 243715708499536082, guid: 4a45b12b36d160c41be1eea83586fbe7, type: 2}
-  mixerType: 2
-  rpm_deviation: 1500
-  pitchCurve:
-    serializedVersion: 2
-    m_Curve:
-    - serializedVersion: 3
-      time: -0.14915405
-      value: 1
-      inSlope: 0.027559677
-      outSlope: 0.027559677
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0
-      outWeight: 0.24474129
-    - serializedVersion: 3
-      time: 0.9431664
-      value: 1.2983152
-      inSlope: 0.08617093
-      outSlope: 0.08617093
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0.33333334
-      outWeight: 0.33333334
-    - serializedVersion: 3
-      time: 0.9656374
-      value: 1.2355402
-      inSlope: -1.0953307
-      outSlope: -1.0953307
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 1
-      outWeight: 0.33333334
-    - serializedVersion: 3
-      time: 0.99627686
-      value: 1.2978241
-      inSlope: 0.24365464
-      outSlope: 0.24365464
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0.7106688
-      outWeight: 0
-    m_PreInfinity: 2
-    m_PostInfinity: 2
-    m_RotationOrder: 4
-  loadEffectivenessOnPitch: 0.25
-  volumeCurve:
-    serializedVersion: 2
-    m_Curve:
-    - serializedVersion: 3
-      time: 0.0063708113
-      value: 0.5
-      inSlope: -0.010929396
-      outSlope: -0.010929396
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0
-      outWeight: 0.24490649
-    - serializedVersion: 3
-      time: 0.8338571
-      value: 1
-      inSlope: -0.04130317
-      outSlope: -0.04130317
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0
-      outWeight: 0.41763476
-    - serializedVersion: 3
-      time: 0.83815485
-      value: 0.68824595
-      inSlope: 0.048279203
-      outSlope: 0.048279203
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0.33333334
-      outWeight: 0.8292589
-    - serializedVersion: 3
-      time: 0.9937686
-      value: 1
-      inSlope: 5.4705787
-      outSlope: 5.4705787
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0.05100727
-      outWeight: 0
-    m_PreInfinity: 2
-    m_PostInfinity: 2
-    m_RotationOrder: 4
-  distortionCurve:
-    serializedVersion: 2
-    m_Curve:
-    - serializedVersion: 3
-      time: 0
-      value: 0
-      inSlope: 0.021669453
-      outSlope: 0.021669453
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0.33333334
-      outWeight: 0.119430415
-    - serializedVersion: 3
-      time: 0.7850375
-      value: 0.47870556
-      inSlope: 1.34551
-      outSlope: 1.34551
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0.09256007
-      outWeight: 0.06902099
-    - serializedVersion: 3
-      time: 1
-      value: 0.60802025
-      inSlope: 1.4215102
-      outSlope: 1.4215102
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0.2360772
-      outWeight: 0.33333334
-    m_PreInfinity: 2
-    m_PostInfinity: 2
-    m_RotationOrder: 4
-  distortionIntensity: 1
-  mufflingIntensity: 0.444
-  lowPassCurve:
-    serializedVersion: 2
-    m_Curve:
-    - serializedVersion: 3
-      time: -0.0047625024
-      value: 3808.5442
-      inSlope: 1745.1549
-      outSlope: 1745.1549
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0.33333334
-      outWeight: 0.34733334
-    - serializedVersion: 3
-      time: 0.9705991
-      value: 12409.579
-      inSlope: 23051.086
-      outSlope: 23051.086
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0.04184531
-      outWeight: 0.1886047
-    - serializedVersion: 3
-      time: 0.977186
-      value: 18667.055
-      inSlope: 326194.97
-      outSlope: 326194.97
-      tangentMode: 136
-      weightedMode: 0
-      inWeight: 0.33333334
-      outWeight: 0.33333334
-    - serializedVersion: 3
-      time: 1
-      value: 22000
-      inSlope: 234370.97
-      outSlope: 234370.97
-      tangentMode: 0
-      weightedMode: 0
-      inWeight: 0.2845998
-      outWeight: 0.33333334
-    m_PreInfinity: 2
-    m_PostInfinity: 2
-    m_RotationOrder: 4
-  lowPassIntensity: 0.802
-  acceleratingSounds:
-  - audioClip: {fileID: 8300000, guid: 8b51edfce612fe84ea23b828ad7bba4a, type: 3}
-    rpmValue: 1000
-    description: orders dont matter
-  - audioClip: {fileID: 8300000, guid: f4a6495e1452f1d40aedcc7d6ce8eee2, type: 3}
-    rpmValue: 2500
-    description: rpm value matters
-  - audioClip: {fileID: 8300000, guid: 03b59e931262508468dde9f109080992, type: 3}
-    rpmValue: 8000
-    description: this is just a text for your own guide
-  deceleratingSounds:
-  - audioClip: {fileID: 8300000, guid: 5b22bdcf4616da84f801feac42991341, type: 3}
-    rpmValue: 2500
-    description: have fun simulating sounds
-  - audioClip: {fileID: 8300000, guid: b1b6f3ce19aed014aad667b39a0fefd8, type: 3}
-    rpmValue: 8000
-    description: you need quality looped files
-  - audioClip: {fileID: 8300000, guid: 5d294bbcf27087348a0cf4672e4f8c3f, type: 3}
-    rpmValue: 1000
-    description: otherwise quality would be subpar
-  idleAccVolume: 0.25
-  maxVolumeAcc: 0.806
-  maxVolumeDcc: 0.422
-  transitionTime: 8
-  acPitchTransitionTime: 16
-  dcPitchTransitionTime: 16
-  acPitchTrim: -0.319
-  dcPitchTrim: 0
-  rndmPitch: 0.001
-  maximumTheoricalRPM: 10000
-  idlePitch: 0.759
-  _rpm: 0
-  _load: 0
-  _maxRpm: 0
-  _isOn: 0
-  _idleRpm: 0
-  l_r: 0
-  _finalPitch: 0
-  _finalAccVol: 0
-  _finalDecVol: 0
-  _AcMin_rTable: []
-  _AcNormal_rTable: []
-  _AcMax_rTable: []
-  _DcMin_rTable: []
-  _DcNormal_rTable: []
-  _DcMax_rTable: []
-  _nonDecelerateAudiosMode: 0
-  _RangeDivider: 0
 --- !u!114 &270443614
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -400,6 +168,399 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 63ad0026d0ad99e479979ac22584b2f2, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  enableOscillation: 1
+  pitchOsc:
+    oscillationSpeed: 8
+    oscillationDepth: 0.15
+    rpmIncreaseThreshold: 150
+    rpmDecreaseThreshold: 80
+    revLimiterThreshold: 50
+    dampingFactor: 5
+    loadInfluence: 0.3
+    effectDelay: 0.05
+    harmonicFrequency: 2
+    harmonicAmplitude: 0.3
+    gearChangeIntensityMultiplier: 1
+    lastRPM: 0
+    oscillationIntensity: 0
+    delayTimer: 0
+--- !u!114 &270443615
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 270443611}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 62a2c473214bb2a458b517d6fbffa685, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _debug: 0
+  debug_rpm: 1000
+  debug_load: 0.5
+  targetedShiftPitch: 0.15
+  shiftPitchOsc: -1e-45
+  masterVolume: 1
+  loadVolumeAccChangerFactor: 1
+  loadVolumeDccChangerFactor: 0.5
+  loadVolumeChangerMinValue: 0.5
+  autoBlip: 1
+  audioSourceTemplate: {fileID: 2049095924}
+  mixer: {fileID: 243715708499536082, guid: 4a45b12b36d160c41be1eea83586fbe7, type: 2}
+  mixerType: 1
+  rpm_deviation: 900
+  pitchCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: -0.0024778098
+      value: 0.6485471
+      inSlope: 0.017404014
+      outSlope: 0.017404014
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0.16857906
+    - serializedVersion: 3
+      time: 0.1510106
+      value: 0.67963535
+      inSlope: 0.039832514
+      outSlope: 0.039832514
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.6155614
+      outWeight: 0.33333334
+    - serializedVersion: 3
+      time: 0.38235572
+      value: 0.7397648
+      inSlope: 0.1964094
+      outSlope: 0.1964094
+      tangentMode: 34
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    - serializedVersion: 3
+      time: 0.5973405
+      value: 0.76833767
+      inSlope: 0.33335972
+      outSlope: 0.33335972
+      tangentMode: 34
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    - serializedVersion: 3
+      time: 0.7066924
+      value: 0.8267111
+      inSlope: 0.07791368
+      outSlope: 0.07791368
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.5182404
+      outWeight: 0.33333334
+    - serializedVersion: 3
+      time: 0.8983418
+      value: 0.91060007
+      inSlope: 0.5322448
+      outSlope: 0.5322448
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.24467689
+      outWeight: 0.33333334
+    - serializedVersion: 3
+      time: 1.0307391
+      value: 1.1953381
+      inSlope: 0.45143485
+      outSlope: 0.45143485
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.017684903
+      outWeight: 0.2605735
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  loadEffectivenessOnPitch: 0.05
+  volumeCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0.09740448
+      value: 0.9329217
+      inSlope: 0.01658237
+      outSlope: 0.01658237
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0.11044561
+    - serializedVersion: 3
+      time: 0.86615133
+      value: 0.95407027
+      inSlope: 0.07555432
+      outSlope: 0.07555432
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.07370979
+      outWeight: 0.33333334
+    - serializedVersion: 3
+      time: 1.0079346
+      value: 0.99299586
+      inSlope: 0.08092693
+      outSlope: 0.08092693
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.40384242
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  distortionCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0.032720335
+      outSlope: 0.032720335
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0.5338692
+    - serializedVersion: 3
+      time: 0.9069137
+      value: 0.11677012
+      inSlope: 0.50474423
+      outSlope: 0.50474423
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    - serializedVersion: 3
+      time: 0.97442186
+      value: 0.35450807
+      inSlope: 0.32833594
+      outSlope: 0.32833594
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    - serializedVersion: 3
+      time: 0.9753244
+      value: 0.47049206
+      inSlope: 0.6793703
+      outSlope: 0.6793703
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.14895503
+      outWeight: 0.33333334
+    - serializedVersion: 3
+      time: 1.0027009
+      value: 0.83041877
+      inSlope: 0.99882895
+      outSlope: 0.99882895
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.05418536
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  distortionIntensity: 0.5
+  mufflingIntensity: 1
+  lowPassCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 5050.0645
+      inSlope: 20925.639
+      outSlope: 20925.639
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0.04340836
+    - serializedVersion: 3
+      time: 1
+      value: 20000
+      inSlope: 32193.527
+      outSlope: 32193.527
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.05305469
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  lowPassIntensity: 1
+  enableExhaustBurble: 1
+  burbleSounds:
+  - {fileID: 8300000, guid: f70a131a98d4fae4d91d564cf5b46a48, type: 3}
+  - {fileID: 8300000, guid: 9b19c62a4ab95e74c82cc4c1cac0d949, type: 3}
+  - {fileID: 8300000, guid: 54c93a3982a028d44ba43e2103fcdaab, type: 3}
+  burbleVolume: 0.24
+  burbleMinRPM: 3500
+  burbleLoadThreshold: 0
+  burbleProbability: 1
+  minBurbleDelay: 0.01
+  maxBurbleDelay: 0.05
+  acceleratingSounds:
+  - audioClip: {fileID: 8300000, guid: c4d9bcd2b376c864190ad7101b37d6bf, type: 3}
+    rpmValue: 1000
+    volumeOffset: 0
+    pitchOffset: 0
+    description: 
+  - audioClip: {fileID: 8300000, guid: 97aaf3e41d8f1554a9ac0d9a62c03e65, type: 3}
+    rpmValue: 2000
+    volumeOffset: 0
+    pitchOffset: 0
+    description: 
+  - audioClip: {fileID: 8300000, guid: 4d2036deced4e154bbde79adde3b1922, type: 3}
+    rpmValue: 3000
+    volumeOffset: -0.26
+    pitchOffset: -0.33
+    description: 
+  - audioClip: {fileID: 8300000, guid: 85c446925982da2488dc8d36c131416a, type: 3}
+    rpmValue: 4000
+    volumeOffset: 0
+    pitchOffset: 0
+    description: 
+  - audioClip: {fileID: 8300000, guid: f1294a4f258a70046a1f94fb6a250da4, type: 3}
+    rpmValue: 5000
+    volumeOffset: 0
+    pitchOffset: 0
+    description: 
+  - audioClip: {fileID: 8300000, guid: 1e23fb08f33a76e42b97952ca50df2b2, type: 3}
+    rpmValue: 6000
+    volumeOffset: 0
+    pitchOffset: 0
+    description: 
+  - audioClip: {fileID: 8300000, guid: eb0dc5cfedacffe44b36760c9534e0bf, type: 3}
+    rpmValue: 7000
+    volumeOffset: 0
+    pitchOffset: 0
+    description: 
+  - audioClip: {fileID: 8300000, guid: 27ffe743585a16f468a0e0c214e2b77a, type: 3}
+    rpmValue: 9119
+    volumeOffset: 0
+    pitchOffset: 0
+    description: 
+  deceleratingSounds:
+  - audioClip: {fileID: 8300000, guid: 07cd148d2d60b8d4da3a8d97ce752525, type: 3}
+    rpmValue: 2000
+    volumeOffset: 0
+    pitchOffset: 0
+    description: 
+  - audioClip: {fileID: 8300000, guid: a24f96f4ddf2fcb498d98b8db8d2f8f1, type: 3}
+    rpmValue: 3000
+    volumeOffset: 0
+    pitchOffset: 0
+    description: 
+  - audioClip: {fileID: 8300000, guid: 8a4339d9de26fbf439a5e35a24576d64, type: 3}
+    rpmValue: 4000
+    volumeOffset: 0
+    pitchOffset: 0
+    description: 
+  - audioClip: {fileID: 8300000, guid: 9f797b2180e2e7b429d8a81088fddb5b, type: 3}
+    rpmValue: 5000
+    volumeOffset: 0
+    pitchOffset: 0
+    description: 
+  - audioClip: {fileID: 8300000, guid: 8bb954c85e77e5f49b3d6457ac4c5b48, type: 3}
+    rpmValue: 6000
+    volumeOffset: 0
+    pitchOffset: 0
+    description: 
+  - audioClip: {fileID: 8300000, guid: beab6af51f4491948bcc943fefd12422, type: 3}
+    rpmValue: 7000
+    volumeOffset: 0
+    pitchOffset: 0
+    description: 
+  - audioClip: {fileID: 8300000, guid: 9f5fc3a322096a944adc3e50f2c4b280, type: 3}
+    rpmValue: 8000
+    volumeOffset: 0
+    pitchOffset: 0
+    description: 
+  idleVolume: 1
+  maxVolumeAcc: 1
+  maxVolumeDcc: 0.029
+  volTransitionTime: 0.1
+  pitchTransitionTime: 32
+  loadTransitionTime: 16
+  acPitchTransitionTime: 32
+  dcPitchTransitionTime: 8
+  acPitchTrim: 0
+  dcPitchTrim: 0.97
+  rndmPitch: 0
+  maximumTheoricalRPM: 9500
+  idlePitch: 0.5
+  bassInput: 15000
+  trebleInput: 250
+  resonanceInput: 0
+  midrangeInput: 0
+  distortionInput: 0
+  flangerInput: 0
+  flangerRate: 0
+  _rpm: 6211.649
+  _load: 0
+  _maxRpm: 8600
+  _isOn: 1
+  _idleRpm: 1200
+  l_r: 6211.649
+  _finalPitch: 0.8170009
+  _finalAccVol: 0.33949515
+  _finalDecVol: 0.6605043
+  _AcMin_rTable:
+  - 0
+  - 750
+  - 1750
+  - 2750
+  - 3750
+  - 4750
+  - 5750
+  - 7869
+  _AcNormal_rTable:
+  - 1000
+  - 2000
+  - 3000
+  - 4000
+  - 5000
+  - 6000
+  - 7000
+  - 9119
+  _AcMax_rTable:
+  - 0
+  - 3250
+  - 4250
+  - 5250
+  - 6250
+  - 7250
+  - 8250
+  - 10369
+  _DcMin_rTable:
+  - 0
+  - 1750
+  - 2750
+  - 3750
+  - 4750
+  - 5750
+  - 6750
+  _DcNormal_rTable:
+  - 2000
+  - 3000
+  - 4000
+  - 5000
+  - 6000
+  - 7000
+  - 8000
+  _DcMax_rTable:
+  - 0
+  - 4250
+  - 5250
+  - 6250
+  - 7250
+  - 8250
+  - 9250
+  _nonDecelerateAudiosMode: 0
+  _RangeDivider: 1
 --- !u!114 &325115277 stripped
 MonoBehaviour:
   m_CorrespondingSourceObject: {fileID: 325115277, guid: 26c0e5b278c2dde45b01e3c71811c0d3, type: 3}
@@ -2103,7 +2264,7 @@ AudioSource:
   Spatialize: 0
   SpatializePostEffects: 0
   Priority: 128
-  DopplerLevel: 1.2
+  DopplerLevel: 0.5
   MinDistance: 1
   MaxDistance: 500
   Pan2D: 0
@@ -2140,7 +2301,7 @@ AudioSource:
     m_Curve:
     - serializedVersion: 3
       time: 0
-      value: 1
+      value: 0.24
       inSlope: 0
       outSlope: 0
       tangentMode: 0
@@ -2536,8 +2697,20 @@ PrefabInstance:
       value: 0.0015
       objectReference: {fileID: 0}
     - target: {fileID: 4933020428885992226, guid: 3e1aced4144dd784c8f3878b71b33dcf, type: 3}
+      propertyPath: soundManager.engineRunningComponent.pitchRange
+      value: 1.08
+      objectReference: {fileID: 0}
+    - target: {fileID: 4933020428885992226, guid: 3e1aced4144dd784c8f3878b71b33dcf, type: 3}
+      propertyPath: soundManager.engineRunningComponent.volumeRange
+      value: 0.1
+      objectReference: {fileID: 0}
+    - target: {fileID: 4933020428885992226, guid: 3e1aced4144dd784c8f3878b71b33dcf, type: 3}
       propertyPath: soundManager.transmissionWhineComponent.maxSpeed
       value: 320
+      objectReference: {fileID: 0}
+    - target: {fileID: 4933020428885992226, guid: 3e1aced4144dd784c8f3878b71b33dcf, type: 3}
+      propertyPath: soundManager.engineRunningComponent.maxDistortion
+      value: 0.33
       objectReference: {fileID: 0}
     - target: {fileID: 4933020428885992226, guid: 3e1aced4144dd784c8f3878b71b33dcf, type: 3}
       propertyPath: soundManager.transmissionWhineComponent.basePitch

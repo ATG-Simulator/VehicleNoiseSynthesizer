@@ -213,11 +213,16 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 62a2c473214bb2a458b517d6fbffa685, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _debug: 0
-  debug_rpm: 100
-  debug_load: 0
-  shiftPitch: 0.5
-  masterVolume: 0.9
+  _debug: 1
+  debug_rpm: 1000
+  debug_load: 0.5
+  targetedShiftPitch: -0.57
+  shiftPitchOsc: 0
+  masterVolume: 1
+  loadVolumeAccChangerFactor: 0.75
+  loadVolumeDccChangerFactor: 0.5
+  loadVolumeChangerMinValue: 0.5
+  autoBlip: 1
   audioSourceTemplate: {fileID: 1014630130}
   mixer: {fileID: 6131963381352869756, guid: 4a45b12b36d160c41be1eea83586fbe7, type: 2}
   mixerType: 2
@@ -246,7 +251,7 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
-  loadEffectivenessOnPitch: 0.5
+  loadEffectivenessOnPitch: 0.222
   volumeCurve:
     serializedVersion: 2
     m_Curve:
@@ -331,83 +336,92 @@ MonoBehaviour:
     m_PostInfinity: 2
     m_RotationOrder: 4
   lowPassIntensity: 0.8
+  enableExhaustBurble: 1
+  burbleSounds: []
+  burbleVolume: 0.7
+  burbleMinRPM: 3500
+  burbleLoadThreshold: 0.3
+  burbleProbability: 0.7
+  minBurbleDelay: 0.05
+  maxBurbleDelay: 0.2
   acceleratingSounds:
   - audioClip: {fileID: 8300000, guid: 0102ca3fa4705f14c888ec1ae3372090, type: 3}
     rpmValue: 500
+    volumeOffset: 0
+    pitchOffset: 0
     description: 
   - audioClip: {fileID: 8300000, guid: 789d5d8e488e53643abcd4e73f780333, type: 3}
     rpmValue: 2000
+    volumeOffset: 0
+    pitchOffset: 0
     description: 
   - audioClip: {fileID: 8300000, guid: e859a2a071791e64282ed4ad3348066d, type: 3}
     rpmValue: 3200
+    volumeOffset: 0
+    pitchOffset: 0
     description: 
   - audioClip: {fileID: 8300000, guid: 686e167e8cf95a64a9eacbc67edd833c, type: 3}
     rpmValue: 4500
+    volumeOffset: 0
+    pitchOffset: 0
     description: 
   - audioClip: {fileID: 8300000, guid: d8591bca3027b5547ac2440cec4b1b24, type: 3}
     rpmValue: 5700
+    volumeOffset: 0
+    pitchOffset: 0
     description: 
   deceleratingSounds: []
-  idleAccVolume: 0.2
+  idleVolume: 0.1
   maxVolumeAcc: 1
   maxVolumeDcc: 0.5
-  transitionTime: 16
+  volTransitionTime: 20
+  pitchTransitionTime: 20
+  loadTransitionTime: 20
   acPitchTransitionTime: 8
   dcPitchTransitionTime: 10
-  acPitchTrim: -0.2
-  dcPitchTrim: -0.33
+  acPitchTrim: 0.97
+  dcPitchTrim: 0
   rndmPitch: -0.007
   maximumTheoricalRPM: 10000
   idlePitch: 0.6
-  _rpm: 4451.8003
-  _load: 0
-  _maxRpm: 8600
-  _isOn: 0
-  _idleRpm: 0
-  l_r: 0
-  _finalPitch: 1.0661131
-  _finalAccVol: 0
+  bassInput: 20000
+  trebleInput: 20
+  resonanceInput: 0
+  midrangeInput: 0
+  distortionInput: 0
+  flangerInput: 0
+  flangerRate: 0
+  _rpm: 1004.2353
+  _load: 0.4993158
+  _maxRpm: 8000
+  _isOn: 1
+  _idleRpm: 800
+  l_r: 1004.2353
+  _finalPitch: 0.41121313
+  _finalAccVol: 1
   _finalDecVol: 0
   _AcMin_rTable:
   - 0
-  - 2250
-  - 3750
-  - 5250
-  - 7750
-  _AcNormal_rTable:
-  - 1000
+  - 500
+  - 1700
   - 3000
+  - 4200
+  _AcNormal_rTable:
+  - 500
+  - 2000
+  - 3200
   - 4500
-  - 6000
-  - 8500
+  - 5700
   _AcMax_rTable:
   - 0
-  - 3750
-  - 5250
-  - 6750
-  - 9250
-  _DcMin_rTable:
-  - 0
-  - 250
-  - 2750
-  - 4250
-  - 6250
-  - 7250
-  _DcNormal_rTable:
-  - 500
-  - 1000
   - 3500
-  - 5000
-  - 7000
-  - 8000
-  _DcMax_rTable:
-  - 0
-  - 1750
-  - 4250
-  - 5750
-  - 7750
-  - 8750
-  _nonDecelerateAudiosMode: 0
+  - 4700
+  - 6000
+  - 7200
+  _DcMin_rTable: []
+  _DcNormal_rTable: []
+  _DcMax_rTable: []
+  _nonDecelerateAudiosMode: 1
   _RangeDivider: 1
 --- !u!4 &79352548
 Transform:
