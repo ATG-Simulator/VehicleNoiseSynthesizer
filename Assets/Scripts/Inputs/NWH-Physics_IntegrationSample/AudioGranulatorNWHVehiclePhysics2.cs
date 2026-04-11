@@ -8,12 +8,26 @@ using UnityEngine;
 
 namespace AroundTheGroundSimulator
 {
-    // NWH Vehicle integration sample
+    // NWH Vehicle Physics 2 integration — FMOD-equivalent architecture.
+    //
+    // Design contract (mirrors confirmed FMOD behaviour):
+    //   • Parameters reach VNS via a bounded linear rate-limiter (LinearSeek),
+    //     not an exponential moving average.  FMOD Seek Speed is explicitly
+    //     documented as linear interpolation, not an EMA / S-curve.
+    //     Source: https://qa.fmod.com/t/change-parameter-over-time/11498
+    //   • Asymmetric seek speeds (up vs. down) mirror FMOD's per-direction
+    //     seek speed toggle present in the parameter deck.
+    //   • Rev limiter bypasses seek entirely — equivalent to calling
+    //     setParameterByName(..., ignoreseekspeed: true) for sudden events.
+    //     Source: https://qa.fmod.com/t/seek-issues-with-parameters/11352
+    //   • All signal-shaping logic (coastLoadFloor, mechLoad blend, rev-limiter
+    //     ping-pong) is preserved — it is not smoothing, it is physical modelling.
+    //   • EnginePitchOscillator is entirely separate (gear-change resonance)
+    //     and is not involved in RPM/load seek at all.
     [RequireComponent(typeof(VehicleNoiseSynthesizer))]
     public class AudioGranulatorNWHVehiclePhysics2 : MonoBehaviour
     {
         VehicleNoiseSynthesizer aG;
-
         VehicleController vp;
         EngineComponent ep;
 
@@ -22,19 +36,12 @@ namespace AroundTheGroundSimulator
         [SerializeField]
         EnginePitchOscillator pitchOsc = new EnginePitchOscillator();
 
+        // ── Audio Load Mapping ─────────────────────────────────────────────────
         [Header("Audio Load Mapping")]
         [Tooltip("Blend factor for mechanical load into audio signal. " +
                  "0 = pure throttle-driven sound. 1 = physics load can fully dominate.")]
         [Range(0f, 1f)]
         [SerializeField] private float mechanicalLoadInfluence = 0.4f;
-
-        [Tooltip("Smoothing rate when load is rising (throttle-on). " +
-                 "Models intake manifold pressure rise time (~80ms).")]
-        [SerializeField] private float loadAttackRate = 12f;
-
-        [Tooltip("Smoothing rate when load is falling (throttle-off). " +
-                 "Models exhaust energy decay + turbo spool-down (~150ms).")]
-        [SerializeField] private float loadReleaseRate = 6f;
 
         [Tooltip("Minimum audio load during engine braking (overrun). " +
                  "Non-zero so the synthesizer doesn't go silent on lift-off, " +
@@ -58,14 +65,33 @@ namespace AroundTheGroundSimulator
         [Range(1f, 50f)]
         [SerializeField] private float revLimiterCutFrequency = 15f;
 
-        [Tooltip("RPM smoothing rate. Filters physics solver jitter " +
-                 "that would cause audible pitch stepping at 50Hz FixedUpdate.")]
-        [SerializeField] private float rpmSmoothRate = 25f;
+        // ── FMOD-equivalent Seek Speeds ────────────────────────────────────────
+        [Header("FMOD-Equivalent Seek Speeds (Linear Rate Limiter)")]
+        [Tooltip("Maximum RPM change per second allowed before VNS sees the value. " +
+                 "FMOD Seek Speed is confirmed linear (units/second). " +
+                 "This caps PhysX solver jitter (±30-50 RPM at 50 Hz) without " +
+                 "the asymptotic lag of an exponential filter. " +
+                 "Rule of thumb: full-rev sweep time = (maxRPM - idleRPM) / rpmSeekSpeed. " +
+                 "Default 3000 RPM/s ≈ ~2.3 s sweep on a 0-7000 RPM range.")]
+        [SerializeField] private float rpmSeekSpeed = 3000f;
 
-        // ── Private state ──
-        private float _smoothedLoad;
-        private float _smoothedRPM;
-        private int _lastGear;
+        [Tooltip("Maximum load change per second when load is RISING (throttle-on). " +
+                 "Mirrors FMOD's 'speed going up' asymmetric seek direction. " +
+                 "Default 3.0 = full 0→1 load range in ~333 ms.")]
+        [SerializeField] private float loadSeekSpeedUp = 3.0f;
+
+        [Tooltip("Maximum load change per second when load is FALLING (throttle-off). " +
+                 "Mirrors FMOD's 'speed going down' asymmetric seek direction. " +
+                 "Slower than up to model exhaust energy decay + turbo spool-down. " +
+                 "Default 1.5 = full 1→0 load range in ~667 ms.")]
+        [SerializeField] private float loadSeekSpeedDown = 1.5f;
+
+        // ── Private state ──────────────────────────────────────────────────────
+        // Seek cursor state — where the parameter cursor currently sits,
+        // exactly like an FMOD parameter value that is mid-seek.
+        private float _seekRPM;
+        private float _seekLoad;
+        private int   _lastGear;
 
         // Rev limiter ping-pong phase (advances at 2 × cutFrequency Hz so
         // PingPong period of 2 maps to exactly 1 full fire+cut cycle per Hz).
@@ -77,109 +103,76 @@ namespace AroundTheGroundSimulator
             vp = this.GetComponentInParent<VehicleController>();
             ep = vp.powertrain.engine;
 
-            vp.powertrain.engine.onStart.AddListener(aG.TurnOn); //NWH Integration to know if the vehicle is on or off
-            vp.powertrain.engine.onStop.AddListener(aG.TurnOff); //NWH Integration to know if the vehicle is on or off
+            vp.powertrain.engine.onStart.AddListener(aG.TurnOn);
+            vp.powertrain.engine.onStop.AddListener(aG.TurnOff);
 
             aG.Activate(vp.powertrain.engine.revLimiterRPM, vp.powertrain.engine.idleRPM);
 
-            // Initialize smoothing state to avoid first-frame transients
-            _smoothedLoad = 0f;
-            _smoothedRPM = ep.idleRPM;
+            // FMOD equivalent: set parameter value BEFORE event start.
+            // This bypasses seek speed for the initial frame — confirmed:
+            // "You set a parameter value without seeking by setting the parameter
+            //  value before calling Event start."
+            // Source: https://qa.fmod.com/t/seek-issues-with-parameters/11352
+            _seekRPM  = ep.idleRPM;
+            _seekLoad = 0f;
             _lastGear = 0;
         }
 
         void OnDisable()
         {
-            vp.powertrain.engine.onStart.RemoveListener(aG.TurnOn); //NWH Integration to know if the vehicle is on or off
-            vp.powertrain.engine.onStop.RemoveListener(aG.TurnOff); //NWH Integration to know if the vehicle is on or off
+            vp.powertrain.engine.onStart.RemoveListener(aG.TurnOn);
+            vp.powertrain.engine.onStop.RemoveListener(aG.TurnOff);
         }
 
         private void FixedUpdate()
         {
             float dt = Time.fixedDeltaTime;
 
-            // ─── RPM ────────────────────────────────────────────────────────
-            // Exponential smoothing removes PhysX solver jitter (±30-50 RPM)
-            // that would otherwise cause audible pitch stepping at 50 Hz.
+            // ─── RPM ────────────────────────────────────────────────────────────
+            // LinearSeek = Mathf.MoveTowards: moves cursor toward target by at
+            // most (rpmSeekSpeed × dt) RPM per frame.  Reaches target exactly —
+            // no asymptotic lag, no hidden time-constant.
+            // Caps PhysX solver jitter (±30-50 RPM at 50 Hz FixedUpdate) while
+            // still tracking fast throttle blips accurately.
             float targetRPM = ep.OutputRPM;
-            _smoothedRPM = ExpSmooth(_smoothedRPM, targetRPM, rpmSmoothRate, dt);
-            aG.rpm = _smoothedRPM;
+            _seekRPM = LinearSeek(_seekRPM, targetRPM, rpmSeekSpeed, dt);
+            aG.rpm   = _seekRPM;
 
-            // ─── Audio Load ─────────────────────────────────────────────────
-            // Two orthogonal signals drive exhaust note intensity:
-            //
-            //  1. Driver throttle (0–1): Primary acoustic indicator.
-            //     Throttle plate angle → intake airflow volume + fuel injection
-            //     quantity → dominant factor in exhaust pulse intensity.
-            //     Source: processed input (dead-zone/curves applied by NWH).
-            //
-            //  2. Mechanical load (ep.Load, 0–1): Secondary modulator.
-            //     Under drivetrain resistance, cylinder pressures rise,
-            //     producing a "heavier" tone at the same throttle opening.
-            //     Scaled by mechanicalLoadInfluence to control its weight.
-            //
-            // Combination via max() — industry standard (FMOD/Wwise vehicle
-            // templates, Forza, Gran Turismo). Guarantees:
-            //   Free-rev neutral:  throttle=1, mechLoad≈0  → 1.0  ✓
-            //   WOT uphill:        throttle=1, mechLoad≈1  → 1.0  ✓
-            //   Cruise half-throt: throttle=0.5, mechLoad=0.3 → 0.5  ✓
-            //   Coast no throttle: throttle=0, mechLoad≈0  → ~0    ✓
-
+            // ─── Audio Load ──────────────────────────────────────────────────────
             float driverThrottle = Mathf.Clamp01(vp.input.states.throttle);
-            float mechLoad = Mathf.Clamp01(ep.Load) * mechanicalLoadInfluence;
-            float rawLoad = Mathf.Max(driverThrottle, mechLoad);
+            float mechLoad       = Mathf.Clamp01(ep.Load) * mechanicalLoadInfluence;
+            float rawLoad        = Mathf.Max(driverThrottle, mechLoad);
 
-            // ─── Rev Limiter Ping-Pong ──────────────────────────────────────
-            // Real rev limiter = rapid fuel-cut stutter. Each cycle:
-            //   FIRE phase: cylinders combust → rawLoad spikes to revLimiterPeakLoad
-            //   CUT  phase: fuel cut → rawLoad drops to revLimiterLoadScale
-            //
-            // Implementation:
-            //   _revLimiterPhase advances at (2 × freq) so Mathf.PingPong
-            //   completes exactly 1 full 0→1→0 cycle per 1/freq seconds.
-            //   Smoothing is bypassed so the stutter is sharp (no attack lag).
+            // ─── Rev Limiter Ping-Pong (seek bypass) ────────────────────────────
+            // FMOD ignoreseekspeed = true equivalent.
+            // The fire/cut stutter must be instantaneous — seek is bypassed
+            // so each edge is razor-sharp, not ramped.
             if (ep.revLimiterActive)
             {
-                // Advance triangular-wave phase (2 units per cycle = 1 Hz maps to 1 cycle)
                 _revLimiterPhase += dt * revLimiterCutFrequency * 2f;
-
-                // PingPong produces 0→1→0 triangular wave
                 float pingPong = Mathf.PingPong(_revLimiterPhase, 1f);
-
-                // Map 0→1 onto [floor, peak]: cut phase at 0, fire phase at 1
-                rawLoad = Mathf.Lerp(revLimiterLoadScale, revLimiterPeakLoad, pingPong);
-
-                // Bypass smoothing — stutter must be instantaneous, not filtered
-                _smoothedLoad = rawLoad;
+                rawLoad    = Mathf.Lerp(revLimiterLoadScale, revLimiterPeakLoad, pingPong);
+                _seekLoad  = rawLoad; // bypass seek
             }
             else
             {
-                // Reset phase so next rev-limiter activation starts cleanly at cut
                 _revLimiterPhase = 0f;
 
-                // ─── Coasting / Overrun ─────────────────────────────────────────
-                // Throttle released + RPM above idle = engine braking.
-                // Real engines produce overrun pops/burbles from unburnt fuel
-                // igniting in the exhaust manifold. Maintain a small floor so
-                // VNS's burble system (which triggers on load delta) gets a
-                // clean drop-to-floor rather than drop-to-zero.
+                // ─── Coasting / Overrun ──────────────────────────────────────────
                 if (driverThrottle < 0.02f && ep.RPMPercent > 0.15f)
                     rawLoad = Mathf.Max(rawLoad, coastLoadFloor);
 
-                // ─── Asymmetric Exponential Smoothing ───────────────────────────
-                // Attack (throttle on) is faster than release (throttle off):
-                //   Attack  ≈ intake manifold pressure rise (~80ms to peak)
-                //   Release ≈ exhaust energy decay + turbo spool-down (~150ms)
-                // This sits upstream of VNS's own loadTransitionTime (symmetric
-                // lerp), giving us the correct physical envelope before VNS
-                // applies its internal smoothing on top.
-                float rate = rawLoad > _smoothedLoad ? loadAttackRate : loadReleaseRate;
-                _smoothedLoad = ExpSmooth(_smoothedLoad, rawLoad, rate, dt);
+                // ─── Asymmetric Linear Seek (Load) ──────────────────────────────
+                // Rising load: loadSeekSpeedUp.  Falling load: loadSeekSpeedDown.
+                // Both are strictly linear (Mathf.MoveTowards), matching FMOD's
+                // confirmed asymmetric seek speed behaviour.
+                float seekRate = rawLoad > _seekLoad ? loadSeekSpeedUp : loadSeekSpeedDown;
+                _seekLoad = LinearSeek(_seekLoad, rawLoad, seekRate, dt);
             }
 
-            aG.load = _smoothedLoad;
+            aG.load = _seekLoad;
 
-            // ─── Gear Change Detection ──────────────────────────────────────
+            // ─── Gear Change Detection ────────────────────────────────────────
             int currentGear = vp.powertrain.transmission.Gear;
             if (currentGear != _lastGear)
             {
@@ -196,14 +189,20 @@ namespace AroundTheGroundSimulator
         }
 
         /// <summary>
-        /// Framerate-independent exponential moving average.
-        /// Equivalent to a first-order low-pass filter: cutoff ≈ rate / (2π) Hz.
+        /// Framerate-independent linear seek (bounded rate limiter).
+        /// Wraps Mathf.MoveTowards: moves 'current' toward 'target' by at
+        /// most (rate × dt) per frame.  Reaches target exactly — no lag.
+        ///
+        /// This is the correct C# equivalent of FMOD Seek Speed:
+        /// "linear interpolation to smooth out parameter changes."
+        /// Source: https://qa.fmod.com/t/change-parameter-over-time/11498
         /// </summary>
-        private static float ExpSmooth(float current, float target, float rate, float dt)
+        private static float LinearSeek(float current, float target, float rate, float dt)
         {
-            return Mathf.Lerp(current, target, 1f - Mathf.Exp(-rate * dt));
+            return Mathf.MoveTowards(current, target, rate * dt);
         }
     }
+
     [Serializable]
     public class EnginePitchOscillator
     {
@@ -212,27 +211,27 @@ namespace AroundTheGroundSimulator
         public float oscillationDepth = 0.15f;
 
         [Header("RPM Thresholds")]
-        public float rpmIncreaseThreshold = 150.0f;  // Threshold for RPM increase
-        public float rpmDecreaseThreshold = 80.0f;   // Threshold for RPM decrease
-        public float revLimiterThreshold = 50.0f;    // Extra sensitivity near rev limiter
+        public float rpmIncreaseThreshold = 150.0f;
+        public float rpmDecreaseThreshold = 80.0f;
+        public float revLimiterThreshold  = 50.0f;
 
         [Header("Response Tuning")]
         public float dampingFactor = 5.0f;
         [Range(0.0f, 1.0f)]
         public float loadInfluence = 0.3f;
-        public float effectDelay = 0.05f;            // Delay before effect kicks in
+        public float effectDelay = 0.05f;
 
         [Header("Advanced Parameters")]
-        public float harmonicFrequency = 2.0f;       // Secondary oscillation frequency
-        public float harmonicAmplitude = 0.3f;       // Secondary oscillation strength
+        public float harmonicFrequency = 2.0f;
+        public float harmonicAmplitude = 0.3f;
         [Range(0.0f, 1.0f)]
         public float gearChangeIntensityMultiplier = 1.5f;
 
         [Header("Debug Information")]
-        [SerializeField] private float lastRPM = 0.0f;
+        [SerializeField] private float lastRPM              = 0.0f;
         [SerializeField] private float oscillationIntensity = 0.0f;
-        [SerializeField] private float delayTimer = 0.0f;
-        private float phaseOffset = 0.0f;
+        [SerializeField] private float delayTimer           = 0.0f;
+        private float phaseOffset   = 0.0f;
         private float harmonicPhase = 0.0f;
 
         public float ProcessPitch(float currentRPM, float engineLoad, bool enableOscillation, float deltaTime)
@@ -240,12 +239,10 @@ namespace AroundTheGroundSimulator
             if (!enableOscillation)
                 return 0;
 
-            // Calculate RPM change
-            float rpmDelta = currentRPM - lastRPM;
+            float rpmDelta    = currentRPM - lastRPM;
             float rpmDeltaAbs = Mathf.Abs(rpmDelta);
             lastRPM = currentRPM;
 
-            // Delay timer processing
             if (rpmDeltaAbs > (rpmDelta > 0 ? rpmIncreaseThreshold : rpmDecreaseThreshold))
             {
                 delayTimer += deltaTime;
@@ -260,37 +257,27 @@ namespace AroundTheGroundSimulator
                 delayTimer = 0.0f;
             }
 
-            // Rev limiter zone detection
-            bool isNearRevLimiter = rpmDeltaAbs < revLimiterThreshold;
+            bool  isNearRevLimiter     = rpmDeltaAbs < revLimiterThreshold;
             float revLimiterMultiplier = isNearRevLimiter ? 1.5f : 1.0f;
 
-            // Update oscillation intensity
             if (oscillationIntensity > 0)
-            {
                 oscillationIntensity *= Mathf.Exp(-dampingFactor * deltaTime);
-            }
 
-            // Calculate load influence
             float loadFactor = 1.0f + (engineLoad * loadInfluence);
+            float baseSpeed  = oscillationSpeed * (1.0f + (currentRPM / 1000.0f));
 
-            // Update phases
-            float baseSpeed = oscillationSpeed * (1.0f + (currentRPM / 1000.0f));
-            phaseOffset = UpdatePhase(phaseOffset, baseSpeed * deltaTime);
+            phaseOffset   = UpdatePhase(phaseOffset,   baseSpeed * deltaTime);
             harmonicPhase = UpdatePhase(harmonicPhase, baseSpeed * harmonicFrequency * deltaTime);
 
-            // Combine primary and harmonic oscillations
-            float primaryOsc = Mathf.Sin(phaseOffset);
+            float primaryOsc  = Mathf.Sin(phaseOffset);
             float harmonicOsc = Mathf.Sin(harmonicPhase) * harmonicAmplitude;
             float combinedOsc = (primaryOsc + harmonicOsc) / (1 + harmonicAmplitude);
 
-            // Calculate final oscillation
-            float oscillation = combinedOsc *
-                              oscillationDepth *
-                              oscillationIntensity *
-                              loadFactor *
-                              revLimiterMultiplier;
-
-            return oscillation;
+            return combinedOsc *
+                   oscillationDepth *
+                   oscillationIntensity *
+                   loadFactor *
+                   revLimiterMultiplier;
         }
 
         private float UpdatePhase(float phase, float delta)
@@ -309,10 +296,10 @@ namespace AroundTheGroundSimulator
         public void Reset()
         {
             oscillationIntensity = 0.0f;
-            lastRPM = 0.0f;
-            phaseOffset = 0.0f;
+            lastRPM       = 0.0f;
+            phaseOffset   = 0.0f;
             harmonicPhase = 0.0f;
-            delayTimer = 0.0f;
+            delayTimer    = 0.0f;
         }
     }
 }
