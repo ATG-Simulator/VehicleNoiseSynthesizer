@@ -2,11 +2,11 @@
 
 ## ATTENTION
 
-1. For the latest version, simply clone the repo, or download the Unitypackage.
+1. For the latest version, simply clone the repo or download the Unitypackage.
 2. The Red Sports Car Demo for the NWH Vehicle Physics 2 scene is not properly set up and therefore outputs subpar audio.
 3. If you do not own an NWH Physics asset for your project, delete the two related scripts in the Input folder.
 
-VNS is an open-source free audio addon primarily designed for Unity to simulate vehicle sounds based on engine RPM, similar to a granulator, without dependencies such as FMOD.
+VNS is an open-source, free audio addon primarily designed for Unity to simulate vehicle sounds based on engine RPM, similar to a granulator, without dependencies such as FMOD.
 
 ![{ADC15B13-CDF1-412F-A49A-F42651C76447}](https://github.com/user-attachments/assets/f12cac05-6ac5-4c41-8234-d67f64bf8363)
 
@@ -18,7 +18,7 @@ An Enhanced FM4-Inspired Vehicle Sound Synthesizer  •  v1.8f2
 
 ### Latest: v1.8f2 (May 2026)
 
-This release is a magor performance upgrade as it is now multi-threaded as well as it has deep-stability and accuracy update. The Non-WebGL (Burst) audio path now produces identical, correct results to the WebGL path. Every core subsystem - blend math, pitch mapping, crossfade panning, hysteresis, and editor tooling - has been audited and fixed against actual runtime behaviour.
+This release is a major performance upgrade as it is now multi-threaded, and it has deep stability and accuracy updates. The Non-WebGL (Burst) audio path now produces identical, correct results to the WebGL path. Every core subsystem - blend math, pitch mapping, crossfade panning, hysteresis, and editor tooling - has been audited and fixed against actual runtime behaviour.
 
 **Installation:**
 
@@ -72,11 +72,11 @@ This release is a magor performance upgrade as it is now multi-threaded as well 
 
 These are useful to compose loop audio for your vehicle sound simulation.
 
-- Here it is described how to seamlessly loop audio using a free audio tool manually:
+- There describes how to seamlessly loop audio using a free audio tool manually:
   - Intermediate Approach: https://gamedevbeginner.com/create-looping-sound-effects-for-games-for-free-with-audacity/
   - Advanced Approach: https://youtu.be/lMZXjCeAUPM
-- This one is even much easier, you don't need to download a tool, and is online but a bit more limited: https://www.drumbot.com/projects/looper/
-- This uses paid software to correct the pitch and make a cleaner seamless audio clip: https://youtu.be/1bnasSQbBqk
+- This one is even easier, you don't need to download a tool, and it is online, but a bit more limited: https://www.drumbot.com/projects/looper/
+- This uses paid software to correct the pitch and make a cleaner, seamless audio clip: https://youtu.be/1bnasSQbBqk
 
 ---
 
@@ -94,13 +94,13 @@ Although this asset was done with the idea of using it in [my passion project AT
 - Standalone _(Procedural Realistic Car Sounds, very CPU intensive)_: [**Engine Simulator** (Free)](https://www.engine-sim.parts/)
 - Android App _(Limited predefined audio files, basic non-seamless loop)_: [**RevHeadz** (free but w/ in-app purchases)](https://rev-headz.com/)
 
-Note that with DAW or standalone apps and plugins you may record looped audio clips for this (or other assets) for simulating your audio in real-time.
+Note that with DAW or standalone apps and plugins, you may record looped audio clips for this (or other assets) for simulating your audio in real-time.
 
 ---
 
-ℹ️ **_How to use it?**
+ℹ️ **_How to use it?_**
 
-Either download the UnityPackage or a zipped archive of this repo and import into a new Unity project. This asset has demo scenes that need NWH Vehicle Physics and NWH Dynamic Water Physics. To use any demo scene you will need those assets imported first. You may have none, one, or all of the NWH assets - just delete the scripts that are not relevant to your project (e.g. NWH Input demo samples if no NWH Asset is used).
+Either download the UnityPackage or a zipped archive of this repo and import it into a new Unity project. This asset has demo scenes that need NWH Vehicle Physics and NWH Dynamic Water Physics. To use any demo scene, you will need those assets imported first. You may have none, one, or all of the NWH assets - just delete the scripts that are not relevant to your project (e.g., NWH Input demo samples if no NWH Asset is used).
 
 1. Add the `VehicleNoiseSynthesizer` component to a GameObject
 2. Assign an AudioSource Template and populate the Acceleration (and optionally Deceleration) clip banks
@@ -110,7 +110,7 @@ Either download the UnityPackage or a zipped archive of this repo and import int
 
 ---
 
-ℹ️ **_How does it work?**
+ℹ️ **_How does it work?_**
 
 <img src="https://raw.githubusercontent.com/ATG-Simulator/VehicleNoiseSynthesizer/main/Depiction.jpg" alt="How does this asset work, Simplified in an image." width="65%">
 
@@ -118,17 +118,17 @@ Two neighbouring audio clips (lo / hi) are crossfaded at any given RPM using a c
 
 ---
 
-ℹ️ **_Why the heck am I sharing this freely?**
+ℹ️ **_Why the heck am I sharing this freely?_**
 
-I expect people to happily use this but also improve it and share an enhanced version with others. _Happy coding! :)_
+I expect people to use this happily, but also to improve it and share an enhanced version with others. _Happy coding! :)_
 
 ---
 
-:copyright: Dan. The original script and its idea were inspired by several internet sources and GitHub Repositories like Keijiro Takahashi, CombatWombatZockchster, manueleisl, and others. The original idea was published as a GitHub repo to recreate a Forza Motorsport 4 type of audio simulation for cars - which unfortunately I lost its URL².
+:copyright: Dan. Several internet sources and GitHub Repositories like Keijiro Takahashi, CombatWombatZockchster, manueleisl, and others inspired the original script and its idea. The original idea was published as a GitHub repo to recreate a Forza Motorsport 4 type of audio simulation for cars, which unfortunately I lost its URL².
 
 Thanks for your attention.
 
-_Check the social media of my passion project called ATG Simulator please:_
+_Check the social media of my passion project called ATG Simulator, please:_
 
 - <https://twitter.com/atg_simulator>
 - <https://www.instagram.com/atg_simulator/>
@@ -140,7 +140,7 @@ _Check the social media of my passion project called ATG Simulator please:_
 
 **Footnotes:**
 
-⁰ Transmission and differential sounds from the video are not by this script. Also blow-off and other sounds are not part of this asset as they are not intended to be.
+⁰ Transmission and differential sounds from the video are not included in this script. Also, blow-off and other sounds are not part of this asset as they are not intended to be.
 
 ¹ This script is also inspired by this video of the Turn10 Audio Engineer: <https://youtu.be/UNvka9GL-9k>. Same as Forza Horizon 3 or Forza Motorsport 7, it needs audio clips based on different rpm speeds. _E.g. `Ferrari458Engine_Accelerating_at_the_rpm_speed_of_5000.wav`._ It needs at least one accelerating audio clip; very few or too many clips may result in subpar quality.
 
