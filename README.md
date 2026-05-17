@@ -38,7 +38,7 @@ This release is a magor performance upgrade as it is now multi-threaded as well 
 
 :ballot_box_with_check: Transmission⁰
 
-:ballot*box_with_check: Differential⁰ *(and alike)\_
+:ballot_box_with_check: Differential⁰ *(and alike)\_
 
 :information_source: Uses real audio clips per Engine RPM and Engine Load to create realistic sound/noise. Two-neighbour constant-power crossfade with cylinder-aware pair hold timing.
 
