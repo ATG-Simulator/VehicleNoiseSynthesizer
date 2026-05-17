@@ -29,7 +29,7 @@ namespace AroundTheGroundSimulator
             e = asc.engines[engineIndex];
             eps = Mathf.Epsilon;
 
-            aG.Activate(e.maxRPM, e.minRPM);
+            aG.Activate();
         }
         private void FixedUpdate()
         {
@@ -38,7 +38,7 @@ namespace AroundTheGroundSimulator
             else
                 aG.TurnOff();
 
-            aG.load = Mathf.Lerp(aG.load,Mathf.Clamp01(Mathf.Abs(e.Thrust) / e.maxThrust), Time.deltaTime * loadSmoothenIntensity);
+            aG.load = Mathf.Lerp(aG.load, Mathf.Clamp01(Mathf.Abs(e.Thrust) / e.maxThrust), Time.deltaTime * loadSmoothenIntensity);
             aG.rpm = Mathf.Lerp(aG.rpm, e.RPM, Time.deltaTime * rpmSmoothenIntensity);
         }
     }

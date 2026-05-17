@@ -32,25 +32,46 @@ public class AudioGranulatorSimpleUI : MonoBehaviour
     [Range(0.1f, 2f)]
     public float loadChangeSpeed = 0.5f;
 
-    // Private variables for smoothing
+    [Header("Rev–Limiter Cutoff Effect")]
+    [Tooltip("Enables a dramatic fuel–cut stutter when RPM hits the rev limiter (maxRPM).")]
+    public bool enableCutoffEffect = true;
+    [Range(0.9f, 1f)]
+    [Tooltip("Normalised RPM (0–1) at which the effect triggers.  0.98 = 98% of maxRPM.")]
+    public float cutoffThreshold = 0.98f;
+    [Range(0.02f, 0.5f)]
+    [Tooltip("Duration (seconds) of the fuel–cut silence window.")]
+    public float cutoffDuration = 0.08f;
+    [Range(0f, 0.3f)]
+    [Tooltip("Random variation added to the cutoff duration for a more organic feel.")]
+    public float cutoffDurationRandomness = 0.03f;
+    [Range(0.05f, 1f)]
+    [Tooltip("Cooldown after a cutoff ends before another can fire.  Prevents rapid re-triggering.")]
+    public float cutoffCooldown = 0.25f;
+
     private float currentRPM;
     private float targetRPM;
     private float currentLoad;
     private float targetLoad;
     private float lastRPMValue;
     private float rpmChangeRate;
-    private bool isAutoLoad = false;
+    private bool isAutoLoad = true;
     private float lastUpdateTime;
+
+    // Cutoff state
+    private float cutoffTimer;
+    private bool cutoffActive;
+    private float cutoffCooldownTimer;
+    private float savedLoadBeforeCutoff;
 
     private void Start()
     {
         synthesizer = GetComponent<VehicleNoiseSynthesizer>();
-        synthesizer._debug = true;
+        synthesizer.debug = true;
 
         InitializeValues();
         SetupListeners();
 
-        synthesizer.Activate(maxRPM, minRPM);
+        synthesizer.Activate();
         synthesizer.TurnOn();
     }
 
@@ -98,15 +119,50 @@ public class AudioGranulatorSimpleUI : MonoBehaviour
     {
         HandleKeyboardInput();
         UpdateValues();
+        UpdateCutoffEffect();
         ApplyValues();
         UpdateUI();
+    }
+
+    /// <summary>
+    /// Dramatic rev–limiter fuel–cut effect.
+    /// When RPM approaches maxRPM, briefly cuts engine load to zero,
+    /// creating the characteristic stutter of a real rev limiter.
+    /// </summary>
+    private void UpdateCutoffEffect()
+    {
+        if (!enableCutoffEffect) return;
+
+        float normalizedRPM = Mathf.InverseLerp(minRPM, maxRPM, currentRPM);
+
+        // Count down cooldown
+        if (cutoffCooldownTimer > 0f)
+            cutoffCooldownTimer -= Time.deltaTime;
+
+        if (!cutoffActive && cutoffCooldownTimer <= 0f && normalizedRPM >= cutoffThreshold)
+        {
+            cutoffActive = true;
+            savedLoadBeforeCutoff = currentLoad;
+            cutoffTimer = cutoffDuration + Random.Range(-cutoffDurationRandomness, cutoffDurationRandomness);
+        }
+
+        if (cutoffActive)
+        {
+            currentLoad = 0f;
+            cutoffTimer -= Time.deltaTime;
+            if (cutoffTimer <= 0f)
+            {
+                cutoffActive = false;
+                cutoffCooldownTimer = cutoffCooldown;
+                currentLoad = savedLoadBeforeCutoff;
+            }
+        }
     }
 
     private void HandleKeyboardInput()
     {
         float deltaTime = Time.deltaTime;
 
-        // Up/Down arrows control RPM
         if (Input.GetKey(KeyCode.UpArrow))
         {
             targetRPM = Mathf.Min(targetRPM + rpmChangeSpeed * deltaTime, maxRPM);
@@ -124,7 +180,6 @@ public class AudioGranulatorSimpleUI : MonoBehaviour
             }
         }
 
-        // Left/Right arrows control Load when not in auto mode
         if (!isAutoLoad)
         {
             if (Input.GetKey(KeyCode.RightArrow))
@@ -137,7 +192,6 @@ public class AudioGranulatorSimpleUI : MonoBehaviour
             }
         }
 
-        // Update slider values to match targets
         if (rpmSlider != null) rpmSlider.value = targetRPM;
         if (loadSlider != null) loadSlider.value = targetLoad;
     }
@@ -146,11 +200,9 @@ public class AudioGranulatorSimpleUI : MonoBehaviour
     {
         float deltaTime = Time.deltaTime;
 
-        // Calculate RPM change rate
         rpmChangeRate = (targetRPM - lastRPMValue) / deltaTime;
         lastRPMValue = targetRPM;
 
-        // Smooth RPM changes
         currentRPM = Mathf.Lerp(currentRPM, targetRPM, deltaTime * smoothnessTime);
 
         if (isAutoLoad)
@@ -159,7 +211,6 @@ public class AudioGranulatorSimpleUI : MonoBehaviour
         }
         else
         {
-            // Smooth Load changes
             currentLoad = Mathf.Lerp(currentLoad, targetLoad, deltaTime * smoothnessTime);
         }
     }
@@ -168,19 +219,17 @@ public class AudioGranulatorSimpleUI : MonoBehaviour
     {
         float normalizedRPM = Mathf.InverseLerp(minRPM, maxRPM, currentRPM);
         float targetLoad;
+        float rpmChangeThreshold = 50f;
 
-        // Calculate RPM change
-        float rpmChangeThreshold = 50f; // Threshold to determine if RPM is "stable"
-
-        if (rpmChangeRate > rpmChangeThreshold) // RPM increasing
+        if (rpmChangeRate > rpmChangeThreshold)
         {
             targetLoad = Mathf.Lerp(currentLoad, 1f, Time.deltaTime * loadResponseTime);
         }
-        else if (rpmChangeRate < -rpmChangeThreshold) // RPM decreasing significantly
+        else if (rpmChangeRate < -rpmChangeThreshold)
         {
             targetLoad = Mathf.Lerp(currentLoad, 0f, Time.deltaTime * loadResponseTime);
         }
-        else // RPM stable - maintain load to simulate resistance
+        else
         {
             targetLoad = Mathf.Lerp(currentLoad, 0.85f, Time.deltaTime * loadResponseTime);
         }
@@ -213,8 +262,8 @@ public class AudioGranulatorSimpleUI : MonoBehaviour
     {
         if (synthesizer != null)
         {
-            synthesizer.debug_rpm = currentRPM;
-            synthesizer.debug_load = currentLoad;
+            synthesizer.debugrpm = currentRPM;
+            synthesizer.debugload = currentLoad;
         }
     }
 
