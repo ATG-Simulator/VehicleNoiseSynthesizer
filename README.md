@@ -98,7 +98,7 @@ Note that with DAW or standalone apps and plugins you may record looped audio cl
 
 ---
 
-:information*source: \*\*\_How to use it?*\*\*
+:informationsource: **_How to use it?**
 
 Either download the UnityPackage or a zipped archive of this repo and import into a new Unity project. This asset has demo scenes that need NWH Vehicle Physics and NWH Dynamic Water Physics. To use any demo scene you will need those assets imported first. You may have none, one, or all of the NWH assets - just delete the scripts that are not relevant to your project (e.g. NWH Input demo samples if no NWH Asset is used).
 
@@ -110,7 +110,7 @@ Either download the UnityPackage or a zipped archive of this repo and import int
 
 ---
 
-:information*source: \*\*\_How does it work?*\*\*
+:informationsource: **_How does it work?**
 
 <img src="https://raw.githubusercontent.com/ATG-Simulator/VehicleNoiseSynthesizer/main/Depiction.jpg" alt="How does this asset work, Simplified in an image." width="65%">
 
@@ -118,7 +118,7 @@ Two neighbouring audio clips (lo / hi) are crossfaded at any given RPM using a c
 
 ---
 
-:information*source: \*\*\_Why the heck am I sharing this freely?*\*\*
+:informationsource: **_Why the heck am I sharing this freely?**
 
 I expect people to happily use this but also improve it and share an enhanced version with others. _Happy coding! :)_
 
