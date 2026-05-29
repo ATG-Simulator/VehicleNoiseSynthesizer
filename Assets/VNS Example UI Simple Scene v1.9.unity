@@ -228,7 +228,7 @@ MonoBehaviour:
   loadVolumeChangerMinValue: 0.5
   autoBlip: 1
   audioSourceTemplate: {fileID: 1014630130}
-  mixer: {fileID: 6131963381352869756, guid: 4a45b12b36d160c41be1eea83586fbe7, type: 2}
+  mixer: {fileID: 243715708499536082, guid: 4a45b12b36d160c41be1eea83586fbe7, type: 2}
   mixerType: 2
   rpmdeviation: 1000
   pitchCurve:
