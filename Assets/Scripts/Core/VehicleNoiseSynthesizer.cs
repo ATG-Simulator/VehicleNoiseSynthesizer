@@ -14,6 +14,7 @@ using Unity.Mathematics;
 
 namespace AroundTheGroundSimulator
 {
+    /// <summary>Vehicle Noise Synthesizer v1.9 — real-time engine audio synthesis with Burst-accelerated neighbour-pair blending.</summary>
     [AddComponentMenu("ATG Audio/Vehicle Noise Synthesizer")]
     [HelpURL("https://github.com/ImDanOush/VehicleNoiseSynthesizer")]
     public class VehicleNoiseSynthesizer : MonoBehaviour
@@ -119,10 +120,6 @@ namespace AroundTheGroundSimulator
         }
 
 #if !UNITY_WEBGL
-        // ─────────────────────────────────────────────────────────────────
-        //  Blittable input snapshot — written each frame on the main thread,
-        //  read-only inside the Burst job.
-        // ─────────────────────────────────────────────────────────────────
         private struct VehicleCalcInput
         {
             public float smoothedRpm;
@@ -164,7 +161,6 @@ namespace AroundTheGroundSimulator
             public float chorusStrength;
             public float reverbStrength;
 
-            // ── Hysteresis state carried in from previous frame ──────────
             public bool accStateInitialized;
             public int accStateLowIndex;
             public int accStateHighIndex;
@@ -180,9 +176,6 @@ namespace AroundTheGroundSimulator
             public float currentTime;            // Time.time snapshot
         }
 
-        // ─────────────────────────────────────────────────────────────────
-        //  Blittable output — written by the job, applied on the main thread.
-        // ─────────────────────────────────────────────────────────────────
         private struct VehicleCalcOutput
         {
             public float finalPitch;
@@ -201,7 +194,6 @@ namespace AroundTheGroundSimulator
             public float reverbDecay;
             public float reverbAmountDb;
 
-            // ── Hysteresis state written back from the job ───────────────
             public bool accStateInitialized;
             public int accStateLowIndex;
             public int accStateHighIndex;
@@ -257,15 +249,12 @@ namespace AroundTheGroundSimulator
                 VehicleCalcOutput o = default;
                 int curveBase = vehicleIndex * CurveSamples;
 
-                // ── Global pitch ────────────────────────────────────────
-                // [fix] Smooth idlePitch blend like idleVolume: Lerp(idlePitch, curve, normalizedRpm)
                 float curvePitch = SampleJob(BakedPitchCurves, curveBase, inp.normalizedRpm);
                 float pitchShape = Lerp(inp.idlePitch, curvePitch, inp.normalizedRpm);
                 float loadPitchContrib = inp.smoothedLoad * inp.loadEffectivenessOnPitch;
                 o.finalPitch = MathMax(0.01f,
                     pitchShape + loadPitchContrib + inp.targetedShiftPitch + inp.shiftPitchOsc);
 
-                // ── Acc/Dec blend ────────────────────────────────────────
                 float halfWidth = MathMax(0.005f, inp.loadBlendWidth * 0.5f);
                 float start = Clamp01(inp.loadCrossoverPoint - halfWidth);
                 float end = Clamp01(inp.loadCrossoverPoint + halfWidth);
@@ -294,7 +283,6 @@ namespace AroundTheGroundSimulator
                 if (inp.clampedRpm <= MathMax(1f, inp.idleRpm))
                     o.finalAccVol = MathMax(o.finalAccVol, inp.idleVolume);
 
-                // ── Bank evaluation with hysteresis ──────────────────────
                 EvaluateBankInJob(inp, o.finalPitch, o.finalAccVol,
                     AccLayerData, AccLayerOffsets[vehicleIndex], inp.accCount,
                     true, inp.maxVolumeAcc, inp.acPitchTrim,
@@ -317,7 +305,6 @@ namespace AroundTheGroundSimulator
                     out o.decStateInitialized, out o.decStateLowIndex,
                     out o.decStateHighIndex, out o.decStateHoldUntilTime);
 
-                // ── Filters ──────────────────────────────────────────────
                 float lpCurveValue = ClampF(
                     SampleJob(BakedLowPassCurves, curveBase, inp.smoothedLoad), 500f, 22000f);
                 float lpMix = Clamp01(MathMax(inp.lowPassIntensity,
@@ -353,8 +340,6 @@ namespace AroundTheGroundSimulator
                 Outputs[vehicleIndex] = o;
             }
 
-            // ── Pure-math helpers (no Unity API, Burst-safe) ─────────────
-
             private static float SampleJob(NativeArray<float> table, int baseIndex, float t)
             {
                 t = t < 0f ? 0f : t > 1f ? 1f : t;
@@ -372,8 +357,6 @@ namespace AroundTheGroundSimulator
                 v < lo ? lo : v > hi ? hi : v;
             private static float MathMax(float a, float b) => a > b ? a : b;
             private static float Lerp(float a, float b, float t) => a + (b - a) * t;
-            // [fix] Clamp to [0,1] to match Unity's Mathf.InverseLerp — prevents negative
-            // crossfade weights when the hysteresis-selected pair does not bracket the current RPM.
             private static float InverseLerp(float a, float b, float t) =>
                 (b - a) < 0.00001f ? 0f : Clamp01((t - a) / (b - a));
             private static float SmoothStep(float t)
@@ -382,7 +365,6 @@ namespace AroundTheGroundSimulator
                 return t * t * (3f - 2f * t);
             }
 
-            // ── EvaluateBankInJob — with RPM hysteresis + hold timer ─────
             private static void EvaluateBankInJob(
                 VehicleCalcInput inp, float finalPitch, float bankFinalVol,
                 NativeArray<LayerData> layerData, int layerOffset, int count,
@@ -406,7 +388,6 @@ namespace AroundTheGroundSimulator
                 outLowVolume = 0f; outHighVolume = 0f;
                 outLowPitch = 1f; outHighPitch = 1f;
 
-                // Pass hysteresis state through unchanged until we decide otherwise
                 outStateInitialized = stateInitialized;
                 outStateLow = stateLowIndex;
                 outStateHigh = stateHighIndex;
@@ -414,7 +395,6 @@ namespace AroundTheGroundSimulator
 
                 if (count <= 0) return;
 
-                // ── Load gain ────────────────────────────────────────────
                 float loadGainRaw = isAcc
                     ? Lerp(inp.loadVolumeChangerMinValue, 1f, inp.smoothedLoad)
                     : Lerp(inp.loadVolumeChangerMinValue, 1f, 1f - inp.smoothedLoad);
@@ -423,7 +403,6 @@ namespace AroundTheGroundSimulator
                     : Lerp(1f, loadGainRaw, inp.loadVolumeDccChangerFactor);
                 float bankBaseGain = inp.masterVolume * bankFinalVol * MathMax(0f, loadGain);
 
-                // ── Find ideal pair for this RPM ─────────────────────────
                 int idealLo = 0, idealHi = 0;
                 if (count > 1)
                 {
@@ -445,7 +424,6 @@ namespace AroundTheGroundSimulator
                     }
                 }
 
-                // ── Hysteresis arbitration ───────────────────────────────
                 int lo, hi;
                 if (!stateInitialized)
                 {
@@ -469,9 +447,6 @@ namespace AroundTheGroundSimulator
                     bool passesHysteresis = false;
                     if (wantsSwitch && count > 1)
                     {
-                        // [fix] Use the transition boundary (current pair's edge), not the ideal pair's reference.
-                        // Moving UP (e.g. 0,1→1,2): boundary = current high clip's refRpm (the clip being crossed).
-                        // Moving DOWN (e.g. 1,2→0,1): boundary = current low clip's refRpm.
                         if (idealHi > stateHighIndex)
                         {
                             float boundary = layerData[layerOffset + stateHighIndex].referenceRpm;
@@ -490,9 +465,6 @@ namespace AroundTheGroundSimulator
 
                     if (wantsSwitch && passesHysteresis)
                     {
-                        // ── CRITICAL: step one pair at a time, not a multi-step jump ──
-                        // Moving up: new pair is (prevHigh, prevHigh+1) — preserves continuity
-                        // Moving down: new pair is (prevLow-1, prevLow)
                         if (idealHi > stateHighIndex)
                         {
                             lo = stateHighIndex < count ? stateHighIndex : count - 1;
@@ -524,7 +496,6 @@ namespace AroundTheGroundSimulator
 
                 outLowIndex = lo; outHighIndex = hi;
 
-                // ── Crossfade blend ──────────────────────────────────────
                 float t = 0f;
                 if (lo != hi)
                 {
@@ -545,8 +516,6 @@ namespace AroundTheGroundSimulator
                     return;
                 }
 
-                // Constant-power crossfade: cos² + sin² = 1 (standard pan law)
-                // Use math.sin/cos (not Bhaskara approx) for correct weights at extremes.
                 float angle = t * 1.5707963f;
                 float lowW = math.cos(angle);
                 float highW = math.sin(angle);
@@ -570,8 +539,6 @@ namespace AroundTheGroundSimulator
                                               bankPitchTrim, inp.combustionEventsPerRev, inp.maxRpm);
             }
 
-            // [fix] Pitch = RPM-based progress mapped to [minPitch, maxPitch].
-            // progress = clampedRpm/maxRpm — continuous across pair boundaries.
             private static float EvalPitchInJob(
                 LayerData ld, float clampedRpm, float finalPitch,
                 float bankPitchTrim, float combustionEventsPerRev, float maxRpm)
@@ -582,7 +549,6 @@ namespace AroundTheGroundSimulator
                 return ClampF(pitch, 0.01f, 10f);
             }
 
-            // Fast Bhaskara sine approximation — no libm dependency, Burst-safe
             private static float MathSin2(float x)
             {
                 const float pi = 3.14159265f;
@@ -597,10 +563,7 @@ namespace AroundTheGroundSimulator
             private static float MathSin(float x) => MathSin2(x);
         }
 
-        // ═══════════════════════════════════════════════════════════════════
-        //  VehicleNoiseBatchManager — owns NativeArrays, drives the job each
-        //  frame, distributes results back to each synthesizer instance.
-        // ═══════════════════════════════════════════════════════════════════
+        /// <summary>Owns NativeArrays, drives the Burst job each frame, and distributes results back to each synthesizer instance.</summary>
         internal static partial class VehicleNoiseBatchManager
         {
             private static readonly List<VehicleNoiseSynthesizer> sInstances =
@@ -640,7 +603,6 @@ namespace AroundTheGroundSimulator
                 if (sNeedsRebuild || count != sAllocatedCount)
                     RebuildNativeArrays(count);
 
-                // ── Pack inputs ──────────────────────────────────────────
                 for (int v = 0; v < count; v++)
                 {
                     VehicleNoiseSynthesizer syn = sInstances[v];
@@ -686,7 +648,6 @@ namespace AroundTheGroundSimulator
                     }
                 }
 
-                // ── Schedule and immediately complete (one-frame pipeline) ─
                 var job = new CalculateBatchJob
                 {
                     Inputs = sInputs,
@@ -705,11 +666,9 @@ namespace AroundTheGroundSimulator
                 JobHandle handle = job.Schedule(count, 1);
                 handle.Complete();
 
-                // ── Distribute results ───────────────────────────────────
                 for (int v = 0; v < count; v++)
                     sInstances[v].ApplyJobData(sOutputs[v]);
 
-                // NOTE: ApplySlewAndEffects is called per-instance in CalculateAsync, always
             }
 
             private static void RebuildNativeArrays(int count)
@@ -775,10 +734,6 @@ namespace AroundTheGroundSimulator
             }
         }
 
-        // ─────────────────────────────────────────────────────────────────
-        //  PackJobInput — reads this instance's MonoBehaviour state into a
-        //  blittable struct.  Called on the main thread before job dispatch.
-        // ─────────────────────────────────────────────────────────────────
         private VehicleCalcInput PackJobInput()
         {
             float clampedRpm = Mathf.Clamp(smoothedRpm, 0f, Mathf.Max(1f, maxRpm));
@@ -828,7 +783,6 @@ namespace AroundTheGroundSimulator
                 chorusStrength = chorusStrength,
                 reverbStrength = reverbStrength,
 
-                // ── Carry hysteresis state from previous frame ───────────
                 accStateInitialized = accBlendState.initialized,
                 accStateLowIndex = accBlendState.lowIndex,
                 accStateHighIndex = accBlendState.highIndex,
@@ -845,9 +799,6 @@ namespace AroundTheGroundSimulator
             };
         }
 
-        // ─────────────────────────────────────────────────────────────────
-        //  ApplyJobOutputs — main-thread Unity API writes after job complete.
-        // ─────────────────────────────────────────────────────────────────
         private void ApplyJobData(VehicleCalcOutput o)
         {
             finalPitch = o.finalPitch;
@@ -863,7 +814,6 @@ namespace AroundTheGroundSimulator
             decBlendState.highIndex = o.decStateHighIndex;
             decBlendState.holdUntilTime = o.decStateHoldUntilTime;
 
-            // Zero all targets then scatter the two active layers
             for (int i = 0; i < accTargetVolumes.Length; i++)
             { accTargetVolumes[i] = 0f; accTargetPitches[i] = 1f; }
             for (int i = 0; i < decTargetVolumes.Length; i++)
@@ -884,7 +834,6 @@ namespace AroundTheGroundSimulator
                 if (lo != hi) { decTargetVolumes[hi] = o.decHighVolume; decTargetPitches[hi] = o.decHighPitch; }
             }
 
-            // Cache the output for ApplySlewAndEffects (called every tick)
             _lastJobOutput = o;
         }
 
@@ -1388,8 +1337,6 @@ namespace AroundTheGroundSimulator
             combustionEventsPerRev = ComputeCombustionEventsPerRevolution();
             NormalizeClipSettings(acceleratingSounds);
             NormalizeClipSettings(deceleratingSounds);
-            SortClipLists();
-
             if (!Application.isPlaying) { BuildRuntimeConfiguration(); BakeAllCurves(); return; }
             BakeAllCurves();
             Activate();
@@ -1412,7 +1359,7 @@ namespace AroundTheGroundSimulator
         private void BuildRuntimeConfiguration()
         {
             combustionEventsPerRev = ComputeCombustionEventsPerRevolution();
-            SortClipLists();
+            SanitizeClipLists();
             BuildRpmTables(acceleratingSounds, out AcMinrTable, out AcNormalrTable, out AcMaxrTable);
             BuildRpmTables(deceleratingSounds, out DcMinrTable, out DcNormalrTable, out DcMaxrTable);
             nonDecelerateAudiosMode = deceleratingSounds == null || deceleratingSounds.Count == 0;
@@ -1428,23 +1375,28 @@ namespace AroundTheGroundSimulator
             _idleRpm = Mathf.Clamp(idleRpmNeedsRefresh ? InferIdleRpm() : _idleRpm, 0f, _maxRpm);
         }
 
-        private void SortClipLists()
+        /// <summary>Removes null entries and clips with missing AudioClips from both banks.</summary>
+        private void SanitizeClipLists()
         {
             if (acceleratingSounds == null) acceleratingSounds = new List<EngineAudioClipData>();
             if (deceleratingSounds == null) deceleratingSounds = new List<EngineAudioClipData>();
-            acceleratingSounds = acceleratingSounds.Where(c => c != null && c.audioClip != null).OrderBy(c => c.rpmValue).ToList();
-            deceleratingSounds = deceleratingSounds.Where(c => c != null && c.audioClip != null).OrderBy(c => c.rpmValue).ToList();
+            acceleratingSounds = acceleratingSounds.Where(c => c != null && c.audioClip != null).ToList();
+            deceleratingSounds = deceleratingSounds.Where(c => c != null && c.audioClip != null).ToList();
         }
 
         private void BuildRpmTables(List<EngineAudioClipData> clips, out float[] minTable, out float[] normalTable, out float[] maxTable)
         {
             if (clips == null || clips.Count == 0) { minTable = Array.Empty<float>(); normalTable = Array.Empty<float>(); maxTable = Array.Empty<float>(); return; }
-            int count = clips.Count;
+
+            var sorted = clips.Where(c => c != null && c.audioClip != null).OrderBy(c => c.rpmValue).ToList();
+            int count = sorted.Count;
+            if (count == 0) { minTable = Array.Empty<float>(); normalTable = Array.Empty<float>(); maxTable = Array.Empty<float>(); return; }
+
             minTable = new float[count];
             normalTable = new float[count];
             maxTable = new float[count];
 
-            for (int i = 0; i < count; i++) normalTable[i] = Mathf.Max(1f, clips[i].rpmValue);
+            for (int i = 0; i < count; i++) normalTable[i] = Mathf.Max(1f, sorted[i].rpmValue);
 
             for (int i = 0; i < count; i++)
             {
@@ -1493,9 +1445,11 @@ namespace AroundTheGroundSimulator
         {
             runtime.Clear();
             if (clips == null) return;
-            for (int i = 0; i < clips.Count; i++)
+
+            var sorted = clips.Where(c => c != null && c.audioClip != null).OrderBy(c => c.rpmValue).ToList();
+            for (int i = 0; i < sorted.Count; i++)
             {
-                EngineAudioClipData clipData = clips[i];
+                EngineAudioClipData clipData = sorted[i];
                 if (clipData == null || clipData.audioClip == null) continue;
                 GameObject host = new GameObject($"{prefix}{i:00}_{clipData.rpmValue}");
                 host.transform.SetParent(transform, false);
@@ -1723,7 +1677,6 @@ namespace AroundTheGroundSimulator
             }
 
             float t = Mathf.InverseLerp(bank[lo].referenceRpm, bank[hi].referenceRpm, clampedRpm);
-            // Constant-power crossfade: cos² + sin² = 1 (standard pan law)
             float angle = t * Mathf.PI * 0.5f;
             float lowW = Mathf.Cos(angle);
             float highW = Mathf.Sin(angle);

@@ -13,7 +13,7 @@ OcclusionCullingSettings:
 --- !u!104 &2
 RenderSettings:
   m_ObjectHideFlags: 0
-  serializedVersion: 9
+  serializedVersion: 10
   m_Fog: 0
   m_FogColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
   m_FogMode: 3
@@ -38,12 +38,12 @@ RenderSettings:
   m_ReflectionIntensity: 1
   m_CustomReflection: {fileID: 0}
   m_Sun: {fileID: 0}
+  m_IndirectSpecularColor: {r: 0, g: 0, b: 0, a: 1}
   m_UseRadianceAmbientProbe: 0
 --- !u!157 &3
 LightmapSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 12
-  m_GIWorkflowMode: 1
   m_GISettings:
     serializedVersion: 2
     m_BounceScale: 1
@@ -66,9 +66,6 @@ LightmapSettings:
     m_LightmapParameters: {fileID: 0}
     m_LightmapsBakeMode: 1
     m_TextureCompression: 1
-    m_FinalGather: 0
-    m_FinalGatherFiltering: 1
-    m_FinalGatherRayCount: 256
     m_ReflectionCompression: 2
     m_MixedBakeMode: 2
     m_BakeBackend: 0
@@ -201,6 +198,11 @@ MonoBehaviour:
   loadResponseTime: 1
   rpmChangeSpeed: 2000
   loadChangeSpeed: 0.1
+  enableCutoffEffect: 1
+  cutoffThreshold: 0.98
+  cutoffDuration: 0.08
+  cutoffDurationRandomness: 0.03
+  cutoffCooldown: 0.25
 --- !u!114 &79352547
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -213,10 +215,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 62a2c473214bb2a458b517d6fbffa685, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _debug: 1
-  debug_rpm: 1000
-  debug_load: 0.5
-  targetedShiftPitch: -0.57
+  debug: 0
+  debugrpm: 1260
+  debugload: 0.5
+  enableDiagnosticLogger: 0
+  enableBurbleDiagnostics: 0
+  targetedShiftPitch: 0
   shiftPitchOsc: 0
   masterVolume: 1
   loadVolumeAccChangerFactor: 0.75
@@ -226,13 +230,13 @@ MonoBehaviour:
   audioSourceTemplate: {fileID: 1014630130}
   mixer: {fileID: 6131963381352869756, guid: 4a45b12b36d160c41be1eea83586fbe7, type: 2}
   mixerType: 2
-  rpm_deviation: 1500
+  rpmdeviation: 1000
   pitchCurve:
     serializedVersion: 2
     m_Curve:
     - serializedVersion: 3
       time: 0
-      value: 0.3
+      value: 0.86119497
       inSlope: 0
       outSlope: 0
       tangentMode: 0
@@ -240,13 +244,13 @@ MonoBehaviour:
       inWeight: 0
       outWeight: 0
     - serializedVersion: 3
-      time: 1
-      value: 0.8
-      inSlope: 1.047687
-      outSlope: 1.047687
+      time: 0.9790207
+      value: 1.0590515
+      inSlope: 0.2772111
+      outSlope: 0.2772111
       tangentMode: 0
       weightedMode: 0
-      inWeight: 0.048154116
+      inWeight: 0.38165247
       outWeight: 0
     m_PreInfinity: 2
     m_PostInfinity: 2
@@ -276,6 +280,15 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
+  keepBankClipsPlaying: 1
+  clipVolumeResponseTime: 0.05
+  clipPitchResponseTime: 0.04
+  rpmResponseTime: 0.035
+  loadResponseTime: 0.04
+  pairHysteresisRpm: 120
+  pairHoldCycles: 0.5
+  cylinderCount: 8
+  combustionCycleMode: 0
   distortionCurve:
     serializedVersion: 2
     m_Curve:
@@ -316,113 +329,107 @@ MonoBehaviour:
     m_Curve:
     - serializedVersion: 3
       time: 0
-      value: 1000
-      inSlope: 8525.103
-      outSlope: 8525.103
+      value: 19330.15
+      inSlope: -4148.1436
+      outSlope: -4148.1436
       tangentMode: 0
       weightedMode: 0
       inWeight: 0
-      outWeight: 0.05939005
+      outWeight: 0.44876483
     - serializedVersion: 3
       time: 1
-      value: 21951.72
-      inSlope: 54880.414
-      outSlope: 54880.414
+      value: 7553.67
+      inSlope: -1426.8357
+      outSlope: -1426.8357
       tangentMode: 0
       weightedMode: 0
-      inWeight: 0.050210238
+      inWeight: 0.42747033
       outWeight: 0
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
-  lowPassIntensity: 0.8
+  lowPassIntensity: 0.859
   enableExhaustBurble: 1
   burbleSounds: []
   burbleVolume: 0.7
   burbleMinRPM: 3500
   burbleLoadThreshold: 0.3
+  burbleRPMDropThreshold: 500
   burbleProbability: 0.7
   minBurbleDelay: 0.05
   maxBurbleDelay: 0.2
+  burbleRandomPitchVariation: 0.08
+  burbleFadeRate: 40
+  enableEngineLugging: 1
+  luggingSounds: []
+  luggingVolume: 0.8
+  luggingMinRPMThreshold: 800
+  luggingMaxRPMThreshold: 2000
+  luggingMinLoadThreshold: 0.7
+  luggingFadeInSpeed: 5
+  luggingFadeOutSpeed: 3
+  luggingBasePitch: 0.9
+  luggingRandomPitchVariation: 0.05
   acceleratingSounds:
   - audioClip: {fileID: 8300000, guid: 0102ca3fa4705f14c888ec1ae3372090, type: 3}
     rpmValue: 500
+    rpmPitchTracking: 1
+    minPitch: 0.01
+    maxPitch: 1.5
+    description: 
     volumeOffset: 0
     pitchOffset: 0
-    description: 
   - audioClip: {fileID: 8300000, guid: 789d5d8e488e53643abcd4e73f780333, type: 3}
     rpmValue: 2000
+    rpmPitchTracking: 1
+    minPitch: 0.31
+    maxPitch: 1
+    description: 
     volumeOffset: 0
     pitchOffset: 0
-    description: 
   - audioClip: {fileID: 8300000, guid: e859a2a071791e64282ed4ad3348066d, type: 3}
     rpmValue: 3200
+    rpmPitchTracking: 1
+    minPitch: 0.31
+    maxPitch: 1
+    description: 
     volumeOffset: 0
     pitchOffset: 0
-    description: 
   - audioClip: {fileID: 8300000, guid: 686e167e8cf95a64a9eacbc67edd833c, type: 3}
     rpmValue: 4500
+    rpmPitchTracking: 1
+    minPitch: 0.13
+    maxPitch: 1.25
+    description: 
     volumeOffset: 0
     pitchOffset: 0
-    description: 
   - audioClip: {fileID: 8300000, guid: d8591bca3027b5547ac2440cec4b1b24, type: 3}
     rpmValue: 5700
+    rpmPitchTracking: 1
+    minPitch: 0.13
+    maxPitch: 1
+    description: 
     volumeOffset: 0
     pitchOffset: 0
-    description: 
   deceleratingSounds: []
-  idleVolume: 0.1
+  idleVolume: 0.33
   maxVolumeAcc: 1
   maxVolumeDcc: 0.5
-  volTransitionTime: 20
-  pitchTransitionTime: 20
-  loadTransitionTime: 20
-  acPitchTransitionTime: 8
-  dcPitchTransitionTime: 10
   acPitchTrim: 0.97
   dcPitchTrim: 0
-  rndmPitch: -0.007
   maximumTheoricalRPM: 10000
-  idlePitch: 0.6
-  bassInput: 20000
-  trebleInput: 20
-  resonanceInput: 0
-  midrangeInput: 0
-  distortionInput: 0
-  flangerInput: 0
-  flangerRate: 0
-  _rpm: 1004.2353
-  _load: 0.4993158
-  _maxRpm: 8000
-  _isOn: 1
-  _idleRpm: 800
-  l_r: 1004.2353
-  _finalPitch: 0.41121313
-  _finalAccVol: 1
-  _finalDecVol: 0
-  _AcMin_rTable:
-  - 0
-  - 500
-  - 1700
-  - 3000
-  - 4200
-  _AcNormal_rTable:
-  - 500
-  - 2000
-  - 3200
-  - 4500
-  - 5700
-  _AcMax_rTable:
-  - 0
-  - 3500
-  - 4700
-  - 6000
-  - 7200
-  _DcMin_rTable: []
-  _DcNormal_rTable: []
-  _DcMax_rTable: []
-  _nonDecelerateAudiosMode: 1
-  _RangeDivider: 1
+  idlePitch: 0.5
+  launchMode: 0
+  lowPassStrength: 0.942
+  highPassStrength: 0.2
+  resonanceStrength: 0.063
+  distortionStrength: 0.437
+  chorusStrength: 0.591
+  reverbStrength: 1
+  useSharedMixerReverb: 1
+  reverbMixerParamName: ReverbAmount
+  loadCrossoverPoint: 0.18
+  loadBlendWidth: 0.1
 --- !u!4 &79352548
 Transform:
   m_ObjectHideFlags: 0
@@ -1166,6 +1173,7 @@ AudioSource:
   serializedVersion: 4
   OutputAudioMixerGroup: {fileID: 0}
   m_audioClip: {fileID: 0}
+  m_Resource: {fileID: 0}
   m_PlayOnAwake: 1
   m_Volume: 1
   m_Pitch: 1

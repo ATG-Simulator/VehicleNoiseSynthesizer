@@ -1,6 +1,9 @@
 using AroundTheGroundSimulator;
 using UnityEngine;
 using UnityEngine.UI;
+#if ENABLE_INPUT_SYSTEM
+using UnityEngine.InputSystem;
+#endif
 
 [RequireComponent(typeof(VehicleNoiseSynthesizer))]
 public class AudioGranulatorSimpleUI : MonoBehaviour
@@ -32,14 +35,14 @@ public class AudioGranulatorSimpleUI : MonoBehaviour
     [Range(0.1f, 2f)]
     public float loadChangeSpeed = 0.5f;
 
-    [Header("Rev–Limiter Cutoff Effect")]
-    [Tooltip("Enables a dramatic fuel–cut stutter when RPM hits the rev limiter (maxRPM).")]
+    [Header("Rev-Limiter Cutoff Effect")]
+    [Tooltip("Enables a dramatic fuel-cut stutter when RPM hits the rev limiter (maxRPM).")]
     public bool enableCutoffEffect = true;
     [Range(0.9f, 1f)]
-    [Tooltip("Normalised RPM (0–1) at which the effect triggers.  0.98 = 98% of maxRPM.")]
+    [Tooltip("Normalised RPM (0-1) at which the effect triggers.  0.98 = 98% of maxRPM.")]
     public float cutoffThreshold = 0.98f;
     [Range(0.02f, 0.5f)]
-    [Tooltip("Duration (seconds) of the fuel–cut silence window.")]
+    [Tooltip("Duration (seconds) of the fuel-cut silence window.")]
     public float cutoffDuration = 0.08f;
     [Range(0f, 0.3f)]
     [Tooltip("Random variation added to the cutoff duration for a more organic feel.")]
@@ -57,7 +60,6 @@ public class AudioGranulatorSimpleUI : MonoBehaviour
     private bool isAutoLoad = true;
     private float lastUpdateTime;
 
-    // Cutoff state
     private float cutoffTimer;
     private bool cutoffActive;
     private float cutoffCooldownTimer;
@@ -124,18 +126,13 @@ public class AudioGranulatorSimpleUI : MonoBehaviour
         UpdateUI();
     }
 
-    /// <summary>
-    /// Dramatic rev–limiter fuel–cut effect.
-    /// When RPM approaches maxRPM, briefly cuts engine load to zero,
-    /// creating the characteristic stutter of a real rev limiter.
-    /// </summary>
+    /// <summary>Dramatic rev-limiter fuel-cut effect. When RPM approaches maxRPM, briefly cuts engine load to zero, creating the characteristic stutter of a real rev limiter.</summary>
     private void UpdateCutoffEffect()
     {
         if (!enableCutoffEffect) return;
 
         float normalizedRPM = Mathf.InverseLerp(minRPM, maxRPM, currentRPM);
 
-        // Count down cooldown
         if (cutoffCooldownTimer > 0f)
             cutoffCooldownTimer -= Time.deltaTime;
 
@@ -163,7 +160,7 @@ public class AudioGranulatorSimpleUI : MonoBehaviour
     {
         float deltaTime = Time.deltaTime;
 
-        if (Input.GetKey(KeyCode.UpArrow))
+        if (IsKeyHeld(KeyCode.UpArrow))
         {
             targetRPM = Mathf.Min(targetRPM + rpmChangeSpeed * deltaTime, maxRPM);
             if (isAutoLoad)
@@ -171,7 +168,7 @@ public class AudioGranulatorSimpleUI : MonoBehaviour
                 targetLoad = Mathf.Min(targetLoad + loadChangeSpeed * deltaTime, maxLoad);
             }
         }
-        else if (Input.GetKey(KeyCode.DownArrow))
+        else if (IsKeyHeld(KeyCode.DownArrow))
         {
             targetRPM = Mathf.Max(targetRPM - rpmChangeSpeed * deltaTime, minRPM);
             if (isAutoLoad)
@@ -182,11 +179,11 @@ public class AudioGranulatorSimpleUI : MonoBehaviour
 
         if (!isAutoLoad)
         {
-            if (Input.GetKey(KeyCode.RightArrow))
+            if (IsKeyHeld(KeyCode.RightArrow))
             {
                 targetLoad = Mathf.Min(targetLoad + loadChangeSpeed * deltaTime, maxLoad);
             }
-            else if (Input.GetKey(KeyCode.LeftArrow))
+            else if (IsKeyHeld(KeyCode.LeftArrow))
             {
                 targetLoad = Mathf.Max(targetLoad - loadChangeSpeed * deltaTime, minLoad);
             }
@@ -194,6 +191,29 @@ public class AudioGranulatorSimpleUI : MonoBehaviour
 
         if (rpmSlider != null) rpmSlider.value = targetRPM;
         if (loadSlider != null) loadSlider.value = targetLoad;
+    }
+
+    private static bool IsKeyHeld(KeyCode key)
+    {
+#if ENABLE_INPUT_SYSTEM
+        var kb = Keyboard.current;
+        if (kb != null)
+        {
+            return key switch
+            {
+                KeyCode.UpArrow => kb.upArrowKey.isPressed,
+                KeyCode.DownArrow => kb.downArrowKey.isPressed,
+                KeyCode.LeftArrow => kb.leftArrowKey.isPressed,
+                KeyCode.RightArrow => kb.rightArrowKey.isPressed,
+                _ => false
+            };
+        }
+#endif
+#if ENABLE_LEGACY_INPUT_MANAGER
+        return Input.GetKey(key);
+#else
+        return false;
+#endif
     }
 
     private void UpdateValues()
