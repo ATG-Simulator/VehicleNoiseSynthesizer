@@ -11,20 +11,38 @@ VNS is an open-source, free audio addon primarily designed for Unity to simulate
 ![{ADC15B13-CDF1-412F-A49A-F42651C76447}](https://github.com/user-attachments/assets/f12cac05-6ac5-4c41-8234-d67f64bf8363)
 
 ```
-An Enhanced FM4-Inspired Vehicle Sound Synthesizer  •  v1.8f2
+An Enhanced FM4-Inspired Vehicle Sound Synthesizer  •  v1.9f
 ```
 
 ---
 
-### Latest: v1.8f2 (May 2026)
+### Latest: v1.9f (May 2026)
 
-This release is a major performance upgrade as it is now multi-threaded, and it has deep stability and accuracy updates. The Non-WebGL (Burst) audio path now produces identical, correct results to the WebGL path. Every core subsystem - blend math, pitch mapping, crossfade panning, hysteresis, and editor tooling - has been audited and fixed against actual runtime behaviour.
+This release delivers a significant editor UX overhaul, fixes critical workflow issues with the clip ReorderableList, adds dual Input System compatibility, and performs a full codebase cleanup. The inspector is now intuitive for new users, and the runtime sorting logic no longer interferes with manual clip ordering in the editor.
+
+**New & Improved:**
+
+- **Editor UX Overhaul:** RPM field is now a plain integer text box (the old Range slider made precise values impossible to enter). Per-clip pitch sliders include numeric readouts and a labeled range bar so users can see exact min/max values at a glance.
+- **Accurate Blend Visualization:** The volume envelope graph now highlights only the two active neighbour clips (the runtime only ever blends two). Inactive clips are dimmed to 13% alpha, eliminating confusion about how many layers blend at once. An active-pair label shows exactly which clips are blending.
+- **Debug RPM Tracking:** The graph marker and combustion preview now correctly follow `debugrpm` in both edit and play modes when debug mode is enabled.
+- **ReorderableList Fix:** Auto-sorting has been removed from the editor-time path. The inspector ReorderableList now preserves the user's manual clip order. Sorting is performed internally by `BuildRpmTables` and `BuildBankLayers` at runtime only, so the neighbour-pair algorithm always receives correctly ordered data.
+- **Dual Input System:** The `AudioGranulatorSimpleUI` test harness now supports both Unity's New Input System (`Keyboard.current`) and the Legacy Input Manager (`Input.GetKey`), selected automatically via `ENABLE_INPUT_SYSTEM` / `ENABLE_LEGACY_INPUT_MANAGER` preprocessor guards.
+- **Codebase Cleanup:** All 6 source files have been standardized - emdash/endash separator comments, `[fix]` annotations, and inline notes removed. Only `/// <summary>` XML doc comments and `[Tooltip]` attributes remain. All scripts tagged with v1.9 version headers.
 
 **Installation:**
 
 1.  **Requirements:** Unity 2021.3 or newer. The `Unity.Mathematics` and `Unity.Burst` packages are required for the non-WebGL path.
 2.  **Download:** Clone this repository directly into your Unity project's `Assets` folder. Do not use the old `.unitypackage` releases as they are outdated.
 3.  **Setup:** Add the `VehicleNoiseSynthesizer` component to your vehicle's audio root GameObject.
+
+---
+
+<details>
+<summary>Previous: v1.8f2 (May 2026)</summary>
+
+This release brought a major performance upgrade with multi-threading support, alongside deep stability and accuracy improvements. The Non-WebGL (Burst) audio path now produces identical, correct results to the WebGL path. Every core subsystem - blend math, pitch mapping, crossfade panning, hysteresis, and editor tooling - was audited and fixed against actual runtime behaviour.
+
+</details>
 
 ---
 
@@ -38,7 +56,7 @@ This release is a major performance upgrade as it is now multi-threaded, and it 
 
 :ballot_box_with_check: Transmission⁰
 
-:ballot_box_with_check: Differential⁰ *(and alike)*
+:ballot*box_with_check: Differential⁰ *(and alike)\_
 
 :information_source: Uses real audio clips per Engine RPM and Engine Load to create realistic sound/noise. Two-neighbour constant-power crossfade with cylinder-aware pair hold timing.
 
@@ -54,7 +72,7 @@ This release is a major performance upgrade as it is now multi-threaded, and it 
 
 :white_check_mark: Accurate constant-power crossfade blending between neighbouring RPM clips (cos² + sin² = 1).
 
-:white_check_mark: Refreshed custom inspector with real-time volume envelope visualisation.
+:white_check_mark: Refreshed custom inspector with active-pair volume envelope visualization and per-clip pitch range readouts.
 
 :white_check_mark: Cylinder-aware pair hold timing for realistic combustion-engine character.
 
@@ -105,8 +123,8 @@ Either download the UnityPackage or a zipped archive of this repo and import it 
 1. Add the `VehicleNoiseSynthesizer` component to a GameObject
 2. Assign an AudioSource Template and populate the Acceleration (and optionally Deceleration) clip banks
 3. Set per-clip RPM values and min/max pitch ranges
-4. Use the new inspector visualisation to verify your blend curves
-5. Feed RPM and Load values via script (see `AudioGranulatorSimpleUI` for a test harness, or the NWH adapters for real vehicle integration)
+4. Use the inspector blend visualization to verify your curves — the graph highlights the two active clips and dims inactive ones
+5. Feed RPM and Load values via script (see `AudioGranulatorSimpleUI` for a test harness with dual Input System support, or the NWH adapters for real vehicle integration)
 
 ---
 
