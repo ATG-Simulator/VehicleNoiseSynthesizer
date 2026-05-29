@@ -4,11 +4,9 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using static System.TimeZoneInfo;
-
 namespace AroundTheGroundSimulator
 {
-    // NWH Vehicle integration sample
+    /// <summary>Vehicle Noise Synthesizer v1.9 — NWH Dynamic Water Physics 2 integration sample.</summary>
     [RequireComponent(typeof(VehicleNoiseSynthesizer))]
     public class AudioGranulatorNWHDynamicWaterPhysics2 : MonoBehaviour
     {
@@ -33,7 +31,7 @@ namespace AroundTheGroundSimulator
         }
         private void FixedUpdate()
         {
-            if (e.isOn) //NWH Dynamic Water Physics does not use Events for its engines so every fixed frame this should be checked... .
+            if (e.isOn)
                 aG.TurnOn();
             else
                 aG.TurnOff();

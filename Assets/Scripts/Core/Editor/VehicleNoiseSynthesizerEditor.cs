@@ -8,9 +8,7 @@ using UnityEngine;
 namespace AroundTheGroundSimulator
 {
     /// <summary>
-    /// Custom inspector for <see cref="VehicleNoiseSynthesizer"/>.
-    /// Draws foldout sections, an accurate sqrt volume blend & RPM-pitch visualization,
-    /// a load crossfade preview, and a combustion chart.
+    /// Custom inspector for <see cref="VehicleNoiseSynthesizer"/> v1.9.
     /// </summary>
     [CustomEditor(typeof(VehicleNoiseSynthesizer))]
     public class VehicleNoiseSynthesizerEditor : Editor
@@ -53,7 +51,6 @@ namespace AroundTheGroundSimulator
         private bool showCombustion = true, showAccBank = true, showDecBank = true;
         private bool showTuning = true, showFx, showBurble, showLugging;
 
-        // ── Visual constants ──────────────────────────────────────────────
         private const float TimelineHeight = 200f;
         private const float RowHeight = 24f;
 
@@ -215,9 +212,6 @@ namespace AroundTheGroundSimulator
             serializedObject.ApplyModifiedProperties();
         }
 
-        // ═══════════════════════════════════════════════════════════════════
-        //  Top bar
-        // ═══════════════════════════════════════════════════════════════════
         private void DrawTopBar()
         {
             Rect rect = GUILayoutUtility.GetRect(0f, 56f, GUILayout.ExpandWidth(true));
@@ -225,12 +219,9 @@ namespace AroundTheGroundSimulator
             EditorGUI.DrawRect(new Rect(rect.x, rect.yMax - 1f, rect.width, 1f), new Color(1f, 1f, 1f, 0.07f));
             EditorGUI.LabelField(new Rect(rect.x + 12f, rect.y + 8f, rect.width - 24f, 22f), "Vehicle Noise Synthesizer", headerStyle);
             EditorGUI.LabelField(new Rect(rect.x + 12f, rect.y + 30f, rect.width - 24f, 18f),
-                "Two-neighbour sqrt-blend editor  •  github.com/ImDanOush/VehicleNoiseSynthesizer", mutedLabelStyle);
+                "v1.9  •  github.com/ImDanOush/VehicleNoiseSynthesizer", mutedLabelStyle);
         }
 
-        // ═══════════════════════════════════════════════════════════════════
-        //  Load crossfade preview
-        // ═══════════════════════════════════════════════════════════════════
         private void DrawLoadCrossfadePreview()
         {
             Rect rect = GUILayoutUtility.GetRect(0f, 78f, GUILayout.ExpandWidth(true));
@@ -248,9 +239,6 @@ namespace AroundTheGroundSimulator
             GUI.Label(new Rect(rect.x + 12f, rect.y + 57f, rect.width - 24f, 18f), "Acceleration / deceleration bank crossfade preview", mutedLabelStyle);
         }
 
-        // ═══════════════════════════════════════════════════════════════════
-        //  Combustion preview
-        // ═══════════════════════════════════════════════════════════════════
         private void DrawCombustionPreview()
         {
             Rect rect = GUILayoutUtility.GetRect(0f, 88f, GUILayout.ExpandWidth(true));
@@ -262,7 +250,7 @@ namespace AroundTheGroundSimulator
             bool fourStroke = combustionCycleModeProp.enumValueIndex == (int)VehicleNoiseSynthesizer.CombustionCycleMode.FourStroke;
             float eventsPerRev = fourStroke ? cylinders * 0.5f : cylinders;
             DrawCurve(chart, t => { float rpm = Mathf.Lerp(0f, maxRpm, t); float hz = (rpm / 60f) * eventsPerRev; float refHz = Mathf.Max(1f, (maxRpm / 60f) * eventsPerRev); return Mathf.Clamp01(hz / refHz); }, SelectedColor);
-            float sampleRpm = Application.isPlaying && synth != null ? synth.rpm : (synth != null && synth.debug ? synth.debugrpm : maxRpm * 0.35f);
+            float sampleRpm = ResolveCurrentRpm(maxRpm);
             float combustionHz = (sampleRpm / 60f) * eventsPerRev;
             float holdCycles = Mathf.Max(0f, pairHoldCyclesProp.floatValue);
             float holdTime = combustionHz > 0.001f ? holdCycles / combustionHz : 0f;
@@ -272,9 +260,6 @@ namespace AroundTheGroundSimulator
                 "Higher RPM raises firing frequency, so the pair-hold window naturally shortens.", mutedLabelStyle);
         }
 
-        // ═══════════════════════════════════════════════════════════════════
-        //  Blend visualization — volume (sqrt) + pitch (RPM-band)
-        // ═══════════════════════════════════════════════════════════════════
         private void DrawBlendVisualization(SerializedProperty bankProp, bool isAcc)
         {
             int count = bankProp.arraySize;
@@ -284,57 +269,77 @@ namespace AroundTheGroundSimulator
             Rect totalRect = GUILayoutUtility.GetRect(0f, TimelineHeight, GUILayout.ExpandWidth(true));
             EditorGUI.DrawRect(totalRect, BgColor);
 
-            // Full-height volume visualization
             Rect volRect = new Rect(totalRect.x + 44f, totalRect.y + 6f, totalRect.width - 52f, totalRect.height - 22f);
             GUI.Label(new Rect(totalRect.x + 2f, volRect.y, 38f, 14f), "Volume", mutedLabelStyle);
 
-            // Volume visualization — per-pair envelope (runtime: only 2 clips play at once)
+            float currentRpm = ResolveCurrentRpm(maxRpm);
+
+            int[] sortedToSource = new int[count];
+            float[] sortedRpms = new float[count];
+            for (int i = 0; i < count; i++)
+            {
+                sortedToSource[i] = i;
+                sortedRpms[i] = Mathf.Max(1f, bankProp.GetArrayElementAtIndex(i).FindPropertyRelative("rpmValue").intValue);
+            }
+            Array.Sort(sortedRpms, sortedToSource);
+
+            int activeSrcLo = -1, activeSrcHi = -1;
+            if (currentRpm < sortedRpms[0])
+            {
+                activeSrcLo = activeSrcHi = sortedToSource[0];
+            }
+            else if (currentRpm > sortedRpms[count - 1])
+            {
+                activeSrcLo = activeSrcHi = sortedToSource[count - 1];
+            }
+            else
+            {
+                for (int si = 0; si < count - 1; si++)
+                {
+                    if (currentRpm >= sortedRpms[si] && currentRpm <= sortedRpms[si + 1])
+                    {
+                        activeSrcLo = sortedToSource[si];
+                        activeSrcHi = sortedToSource[si + 1];
+                        break;
+                    }
+                }
+                if (activeSrcLo < 0) { activeSrcLo = activeSrcHi = sortedToSource[count - 1]; }
+            }
+
             Color[] colors = GenerateColors(count, isAcc);
 
             const int envSamples = 200;
             float[] envelopeY = new float[envSamples];
             for (int s = 0; s < envSamples; s++) envelopeY[s] = 0f;
 
-            List<Vector3[]> allClipCurves = new List<Vector3[]>();
-
-            // Build envelope from ADJACENT PAIRS — exactly like runtime FindStableNeighbourPair
-            for (int p = 0; p < count - 1; p++)
+            for (int si = 0; si < count - 1; si++)
             {
-                float loRef = bankProp.GetArrayElementAtIndex(p).FindPropertyRelative("rpmValue").intValue;
-                float hiRef = bankProp.GetArrayElementAtIndex(p + 1).FindPropertyRelative("rpmValue").intValue;
-                float loRefF = Mathf.Max(1f, loRef);
-                float hiRefF = Mathf.Max(1f, hiRef);
-
-                // In this pair, lo weight = cos(t*PI/2), hi weight = sin(t*PI/2) (constant-power pan)
+                float loRef = sortedRpms[si];
+                float hiRef = sortedRpms[si + 1];
                 for (int s = 0; s < envSamples; s++)
                 {
                     float sampleRpm = Mathf.Lerp(0f, maxRpm, s / (float)(envSamples - 1));
-                    if (sampleRpm < loRefF || sampleRpm > hiRefF) continue;
-                    float t = Mathf.InverseLerp(loRefF, hiRefF, sampleRpm);
+                    if (sampleRpm < loRef || sampleRpm > hiRef) continue;
+                    float t = Mathf.InverseLerp(loRef, hiRef, sampleRpm);
                     float angle = t * Mathf.PI * 0.5f;
-                    float loW = Mathf.Cos(angle);
-                    float hiW = Mathf.Sin(angle);
-                    float sum = loW + hiW;
+                    float sum = Mathf.Cos(angle) + Mathf.Sin(angle);
                     if (sum > envelopeY[s]) envelopeY[s] = sum;
                 }
             }
 
-            // Build per-clip curves (each clip draws its rising half + falling half)
-            for (int i = 0; i < count; i++)
+            var clipDrawData = new (Vector3[] curve, int srcIdx)[count];
+            for (int si = 0; si < count; si++)
             {
-                float refRpm = Mathf.Max(1f, bankProp.GetArrayElementAtIndex(i).FindPropertyRelative("rpmValue").intValue);
-                float prevRpm = i > 0 ? bankProp.GetArrayElementAtIndex(i - 1).FindPropertyRelative("rpmValue").intValue : 0f;
-                float nextRpm = i < count - 1 ? bankProp.GetArrayElementAtIndex(i + 1).FindPropertyRelative("rpmValue").intValue : maxRpm;
-
-                // Clip i as HI in pair (i-1, i): rising sqrt(t) from prevRpm to refRpm
-                // Clip i as LO in pair (i, i+1): falling sqrt(1-t) from refRpm to nextRpm
-                Vector3[] curve = BuildCosCurve(volRect, prevRpm, refRpm, nextRpm, maxRpm);
-                allClipCurves.Add(curve);
+                float prevRpm = si > 0 ? sortedRpms[si - 1] : 0f;
+                float refRpm = sortedRpms[si];
+                float nextRpm = si < count - 1 ? sortedRpms[si + 1] : maxRpm;
+                int srcIdx = sortedToSource[si];
+                clipDrawData[si] = (BuildCosCurve(volRect, prevRpm, refRpm, nextRpm, maxRpm), srcIdx);
             }
 
-            // Draw envelope fill (single smooth area)
             Handles.BeginGUI();
-            Color envFill = isAcc ? new Color(0.23f, 0.76f, 1f, 0.12f) : new Color(1f, 0.57f, 0.22f, 0.12f);
+
+            Color envFill = isAcc ? new Color(0.23f, 0.76f, 1f, 0.14f) : new Color(1f, 0.57f, 0.22f, 0.14f);
             Handles.color = envFill;
             for (int s = 0; s < envSamples - 1; s++)
             {
@@ -347,25 +352,42 @@ namespace AroundTheGroundSimulator
                     new Vector3(x1, volRect.yMax), new Vector3(x0, volRect.yMax));
             }
 
-            // Draw per-clip lines on top
-            for (int i = 0; i < allClipCurves.Count; i++)
+            for (int si = 0; si < clipDrawData.Length; si++)
             {
-                Handles.color = new Color(colors[i].r, colors[i].g, colors[i].b, 0.85f);
-                Handles.DrawAAPolyLine(2f, allClipCurves[i]);
+                int srcIdx = clipDrawData[si].srcIdx;
+                bool isActive = (srcIdx == activeSrcLo || srcIdx == activeSrcHi);
+                float alpha = isActive ? 0.90f : 0.13f;
+                float thickness = isActive ? 2.5f : 1.0f;
+                Handles.color = new Color(colors[srcIdx].r, colors[srcIdx].g, colors[srcIdx].b, alpha);
+                Handles.DrawAAPolyLine(thickness, clipDrawData[si].curve);
             }
+
             Handles.EndGUI();
 
-            // RPM scale
             DrawRpmScale(totalRect, maxRpm);
 
-            // Current RPM marker
-            float rpm = Application.isPlaying && synth ? synth.rpm : (synth && synth.debug ? synth.debugrpm : maxRpm * 0.35f);
-            float mx = Mathf.Lerp(totalRect.x + 44f, totalRect.xMax - 4f, Mathf.Clamp01(rpm / maxRpm));
+            float mx = Mathf.Lerp(totalRect.x + 44f, totalRect.xMax - 4f, Mathf.Clamp01(currentRpm / maxRpm));
             EditorGUI.DrawRect(new Rect(mx, totalRect.y, 1.5f, totalRect.height), new Color(1f, 1f, 1f, 0.5f));
-            GUI.Label(new Rect(mx - 30f, totalRect.y, 60f, 14f), Mathf.RoundToInt(rpm).ToString(), new GUIStyle(EditorStyles.miniLabel) { alignment = TextAnchor.MiddleCenter, normal = { textColor = Color.white } });
+            GUI.Label(new Rect(mx - 30f, totalRect.y, 60f, 14f), Mathf.RoundToInt(currentRpm).ToString(), new GUIStyle(EditorStyles.miniLabel) { alignment = TextAnchor.MiddleCenter, normal = { textColor = Color.white } });
+
+            string pairLabel = activeSrcLo == activeSrcHi
+                ? $"Active: clip {activeSrcLo}  ({Mathf.RoundToInt(bankProp.GetArrayElementAtIndex(activeSrcLo).FindPropertyRelative("rpmValue").intValue)} RPM)"
+                : $"Active: clips {activeSrcLo}–{activeSrcHi}  ({Mathf.RoundToInt(bankProp.GetArrayElementAtIndex(activeSrcLo).FindPropertyRelative("rpmValue").intValue)}–{Mathf.RoundToInt(bankProp.GetArrayElementAtIndex(activeSrcHi).FindPropertyRelative("rpmValue").intValue)} RPM)";
+            GUI.Label(new Rect(totalRect.x + 2f, totalRect.yMax - 16f, totalRect.width - 4f, 14f), pairLabel, mutedLabelStyle);
         }
 
-        // Builds a single clip's cos/sin curve as screen-space points [rising sin, falling cos]
+        /// <summary>Resolves the current RPM for visualization markers, respecting debug mode in both edit and play states.</summary>
+        private float ResolveCurrentRpm(float maxRpm)
+        {
+            if (synth == null) return maxRpm * 0.35f;
+
+            bool isPlaying = Application.isPlaying;
+            if (isPlaying)
+                return synth.debug ? synth.debugrpm : synth.rpm;
+            else
+                return synth.debug ? synth.debugrpm : maxRpm * 0.35f;
+        }
+
         private Vector3[] BuildCosCurve(Rect rect, float leftEdge, float center, float rightEdge, float maxRpm)
         {
             int n = 40;
@@ -375,7 +397,7 @@ namespace AroundTheGroundSimulator
                 float t = i / (float)(n - 1);
                 float rpm = Mathf.Lerp(leftEdge, center, t);
                 float angle = t * Mathf.PI * 0.5f;
-                float w = Mathf.Sin(angle);  // rising: sin(t*PI/2)
+                float w = Mathf.Sin(angle);
                 pts[i] = new Vector3(RpmToX(rpm, rect, maxRpm), WeightToY(w, rect), 0f);
             }
             for (int i = 1; i < n; i++)
@@ -383,7 +405,7 @@ namespace AroundTheGroundSimulator
                 float t = i / (float)(n - 1);
                 float rpm = Mathf.Lerp(center, rightEdge, t);
                 float angle = t * Mathf.PI * 0.5f;
-                float w = Mathf.Cos(angle);  // falling: cos(t*PI/2)
+                float w = Mathf.Cos(angle);
                 pts[n - 1 + i] = new Vector3(RpmToX(rpm, rect, maxRpm), WeightToY(w, rect), 0f);
             }
             return pts;
@@ -402,9 +424,6 @@ namespace AroundTheGroundSimulator
             }
         }
 
-        // ═══════════════════════════════════════════════════════════════════
-        //  Draw utilities
-        // ═══════════════════════════════════════════════════════════════════
         private float RpmToX(float rpm, Rect r, float max) => Mathf.Lerp(r.x, r.xMax, Mathf.Clamp01(rpm / max));
         private float WeightToY(float w, Rect r) => Mathf.Lerp(r.yMax - 2f, r.y + 6f, Mathf.Clamp01(w));
 
@@ -417,7 +436,7 @@ namespace AroundTheGroundSimulator
             return c;
         }
 
-        private string Shorten(string s, int max) => string.IsNullOrEmpty(s) || s.Length <= max ? s : s.Substring(0, max - 1) + "…";
+        private string Shorten(string s, int max) => string.IsNullOrEmpty(s) || s.Length <= max ? s : s.Substring(0, max - 1) + "\u2026";
 
         private void DrawFoldoutSection(ref bool foldout, string title, Action drawBody)
         {
@@ -449,11 +468,8 @@ namespace AroundTheGroundSimulator
             Handles.EndGUI();
         }
 
-        // ═══════════════════════════════════════════════════════════════════
-        //  ReorderableList with labelled per-clip fields (2 rows per clip)
-        // ═══════════════════════════════════════════════════════════════════
         private const float ClipRowH = 20f;
-        private const float ClipElementH = ClipRowH * 2f + 6f;
+        private const float ClipElementH = 62f;
 
         private ReorderableList BuildClipList(SerializedProperty prop, string label)
         {
@@ -493,42 +509,49 @@ namespace AroundTheGroundSimulator
                 float r2y = rect.y + ClipRowH + 2f;
                 float fldH = EditorGUIUtility.singleLineHeight;
 
-                // Row 1: AudioClip | RPM | Vol | PitchOff
                 EditorGUI.PropertyField(new Rect(rect.x, r1y, w * 0.42f, fldH), clipP, GUIContent.none);
-                float x = rect.x + w * 0.43f;
-                DrawLabeledField("RPM", ref x, w, r1y, 28f, rpmP, 52f);
-                // DrawLabeledField("Vol", ref x, w, r1y, 22f, volP, 46f);
-                // DrawLabeledField("POff", ref x, w, r1y, 28f, pitP, 46f);
 
-                // Row 2: min/max pitch sliders + range viz line
-                Rect minR = new Rect(rect.x + 48f, r2y, (w - 96f) / 2f, fldH);
-                Rect maxR = new Rect(minR.xMax + 8f, r2y, (w - 96f) / 2f, fldH);
-                GUI.Label(new Rect(rect.x, r2y, 46f, fldH), "min", EditorStyles.miniLabel);
-                EditorGUI.Slider(minR, minP, 0.01f, 4f, GUIContent.none);
-                EditorGUI.Slider(maxR, maxP, minP.floatValue, 4f, GUIContent.none);
-                Rect vizR = new Rect(rect.x, r2y + fldH + 2f, w, 4f);
+                Rect rpmLabelR = new Rect(rect.x + w * 0.43f, r1y, 30f, fldH);
+                Rect rpmFieldR = new Rect(rpmLabelR.xMax + 2f, r1y, 56f, fldH);
+                GUI.Label(rpmLabelR, "RPM", EditorStyles.miniLabel);
+                int newRpm = EditorGUI.IntField(rpmFieldR, rpmP.intValue);
+                if (newRpm != rpmP.intValue) rpmP.intValue = Mathf.Max(0, newRpm);
+
+                float pitchLabelW = 42f;
+                GUI.Label(new Rect(rect.x, r2y, pitchLabelW, fldH), "Pitch", EditorStyles.miniLabel);
+
+                float sliderAreaX = rect.x + pitchLabelW + 4f;
+                float sliderWidth = (w - pitchLabelW - 20f) / 2f;
+                Rect loR = new Rect(sliderAreaX, r2y, sliderWidth, fldH);
+                Rect hiR = new Rect(loR.xMax + 6f, r2y, sliderWidth, fldH);
+
+                Rect loLabelR = new Rect(loR.x, r2y, 18f, fldH);
+                GUI.Label(loLabelR, "Lo", EditorStyles.miniLabel);
+                Rect loSliderR = new Rect(loLabelR.xMax + 2f, r2y, loR.width - 58f, fldH);
+                Rect loValR = new Rect(loSliderR.xMax + 2f, r2y, 36f, fldH);
+                EditorGUI.Slider(loSliderR, minP, 0.01f, 4f, GUIContent.none);
+                GUI.Label(loValR, minP.floatValue.ToString("F2"), EditorStyles.centeredGreyMiniLabel);
+
+                Rect hiLabelR = new Rect(hiR.x, r2y, 18f, fldH);
+                GUI.Label(hiLabelR, "Hi", EditorStyles.miniLabel);
+                Rect hiSliderR = new Rect(hiLabelR.xMax + 2f, r2y, hiR.width - 58f, fldH);
+                Rect hiValR = new Rect(hiSliderR.xMax + 2f, r2y, 36f, fldH);
+                EditorGUI.Slider(hiSliderR, maxP, minP.floatValue, 4f, GUIContent.none);
+                GUI.Label(hiValR, maxP.floatValue.ToString("F2"), EditorStyles.centeredGreyMiniLabel);
+
+                Rect vizR = new Rect(rect.x, r2y + fldH + 3f, w, 5f);
                 float normMin = Mathf.InverseLerp(0.01f, 4f, minP.floatValue);
                 float normMax = Mathf.InverseLerp(0.01f, 4f, maxP.floatValue);
                 float vizL = Mathf.Lerp(vizR.x, vizR.xMax, normMin);
                 float vizR2 = Mathf.Lerp(vizR.x, vizR.xMax, normMax);
-                EditorGUI.DrawRect(new Rect(vizL, vizR.y, vizR2 - vizL, vizR.height), new Color(0.23f, 0.76f, 1f, 0.5f));
+                EditorGUI.DrawRect(new Rect(vizL, vizR.y, vizR2 - vizL, vizR.height), new Color(0.23f, 0.76f, 1f, 0.6f));
+                GUI.Label(new Rect(vizR.x, vizR.y + 5f, 20f, 12f), "0", EditorStyles.miniLabel);
+                GUI.Label(new Rect(vizR.xMax - 12f, vizR.y + 5f, 16f, 12f), "4", EditorStyles.miniLabel);
             };
 
             return list;
         }
 
-        private static void DrawLabeledField(string label, ref float x, float totalW, float y, float labelW, SerializedProperty prop, float fieldW)
-        {
-            Rect lr = new Rect(x, y, labelW, EditorGUIUtility.singleLineHeight);
-            GUI.Label(lr, label, EditorStyles.miniLabel);
-            Rect fr = new Rect(x + labelW, y, fieldW, EditorGUIUtility.singleLineHeight);
-            EditorGUI.PropertyField(fr, prop, GUIContent.none);
-            x += labelW + fieldW + 4f;
-        }
-
-        // ═══════════════════════════════════════════════════════════════════
-        //  Styles & cache
-        // ═══════════════════════════════════════════════════════════════════
         private void EnsureStyles()
         {
             if (headerStyle != null) return;
