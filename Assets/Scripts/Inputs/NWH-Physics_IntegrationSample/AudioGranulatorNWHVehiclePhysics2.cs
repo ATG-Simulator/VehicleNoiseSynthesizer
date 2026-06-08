@@ -40,16 +40,36 @@ namespace AroundTheGroundSimulator
         }
 
         private int lastGear = 0;
+        private float previousThrottle;
+        private bool previousThrottleInitialized;
 
         private void FixedUpdate()
         {
             aG.load = vp.powertrain.engine.Load;
             aG.rpm = vp.powertrain.engine.OutputRPM;
 
+            // --- Throttle tip-in / tip-out event detection ---
+            float currentThrottle = vp.input.Throttle;
+            if (previousThrottleInitialized)
+            {
+                float engineLoad = vp.powertrain.engine.Load;
+
+                // Tip-in: throttle jumped from near-zero to near-full
+                if (previousThrottle < 0.2f && currentThrottle >= 0.8f)
+                    aG.OnThrottleTipIn(currentThrottle, aG.rpm, engineLoad);
+                // Tip-out: throttle dropped from near-full to near-zero
+                else if (previousThrottle > 0.8f && currentThrottle <= 0.2f)
+                    aG.OnThrottleTipOut(aG.rpm, engineLoad);
+            }
+            previousThrottle = currentThrottle;
+            previousThrottleInitialized = true;
+
+            // --- Gear change detection ---
             int currentGear = vp.powertrain.transmission.Gear;
             if (currentGear != lastGear)
             {
                 pitchOsc.OnGearChange();
+                aG.OnGearShift();
                 lastGear = currentGear;
             }
 

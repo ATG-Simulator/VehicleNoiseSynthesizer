@@ -18,9 +18,9 @@ namespace AroundTheGroundSimulator
         private SerializedProperty debugProp, debugRpmProp, debugLoadProp;
         private SerializedProperty enableDiagnosticLoggerProp, enableBurbleDiagnosticsProp;
         private SerializedProperty audioSourceTemplateProp, mixerProp, mixerTypeProp;
-        private SerializedProperty masterVolumeProp, targetedShiftPitchProp, autoBlipProp, rpmDeviationProp;
+        private SerializedProperty masterVolumeProp, autoBlipProp, rpmDeviationProp;
         private SerializedProperty pitchCurveProp, volumeCurveProp, loadEffectivenessOnPitchProp;
-        private SerializedProperty idlePitchProp, idleVolumeProp;
+        private SerializedProperty idleVolumeProp;
         private SerializedProperty keepBankClipsPlayingProp, clipVolumeResponseTimeProp, clipPitchResponseTimeProp;
         private SerializedProperty rpmResponseTimeProp, loadResponseTimeProp;
         private SerializedProperty pairHysteresisRpmProp, pairHoldCyclesProp;
@@ -36,20 +36,37 @@ namespace AroundTheGroundSimulator
         private SerializedProperty distortionCurveProp, distortionIntensityProp, mufflingIntensityProp;
         private SerializedProperty lowPassCurveProp, lowPassIntensityProp;
         private SerializedProperty enableExhaustBurbleProp, burbleSoundsProp, burbleVolumeProp;
-        private SerializedProperty burbleMinRPMProp, burbleLoadThresholdProp, burbleRPMDropThresholdProp;
+        private SerializedProperty burbleMinRPMProp, burbleLoadLowThresholdProp, burbleLoadHighThresholdProp, burbleRPMDropThresholdProp;
         private SerializedProperty burbleProbabilityProp, minBurbleDelayProp, maxBurbleDelayProp;
         private SerializedProperty burbleRandomPitchVariationProp, burbleFadeRateProp;
+        private SerializedProperty enableDctShiftBurbleProp, dctShiftBurbleSoundProp, dctShiftBurbleVolumeProp;
+        private SerializedProperty dctShiftBurbleRpmVolumeInfluenceProp, dctShiftBurbleMinRPMProp, dctShiftBurbleMaxDurationProp;
+        private SerializedProperty dctShiftBurbleBasePitchProp, dctShiftBurblePitchVariationProp;
         private SerializedProperty enableEngineLuggingProp, luggingSoundsProp, luggingVolumeProp;
         private SerializedProperty luggingMinRPMThresholdProp, luggingMaxRPMThresholdProp, luggingMinLoadThresholdProp;
         private SerializedProperty luggingFadeInSpeedProp, luggingFadeOutSpeedProp;
         private SerializedProperty luggingBasePitchProp, luggingRandomPitchVariationProp;
+
+        // Throttle Body
+        private SerializedProperty enableThrottleBodyProp;
+        private SerializedProperty intakeRoarSoundsProp, throttleFlutterSoundsProp;
+        private SerializedProperty intakeRoarVolumeProp, throttleFlutterVolumeProp;
+        private SerializedProperty throttleBodyPitchVariationProp;
+        private SerializedProperty intakeRoarLoadDeltaThresholdProp, throttleFlutterLoadDeltaThresholdProp;
+        private SerializedProperty throttleBodyCooldownProp;
+
+        // Redline
+        private SerializedProperty enableRedlineEffectProp, redlineSoundsProp, redlineVolumeProp;
+        private SerializedProperty redlineMinRPMProp, redlineMaxRPMProp;
+        private SerializedProperty redlineMinDelayProp, redlineMaxDelayProp;
+        private SerializedProperty redlineBasePitchProp, redlinePitchVariationProp;
 
         private ReorderableList acceleratingList;
         private ReorderableList deceleratingList;
 
         private bool showDebug = true, showCore = true, showCurves = true, showBlend = true;
         private bool showCombustion = true, showAccBank = true, showDecBank = true;
-        private bool showTuning = true, showFx, showBurble, showLugging;
+        private bool showTuning = true, showFx, showBurble, showLugging, showThrottleBody, showRedline;
 
         private const float TimelineHeight = 200f;
         private const float RowHeight = 24f;
@@ -70,14 +87,15 @@ namespace AroundTheGroundSimulator
             synth = (VehicleNoiseSynthesizer)target;
             CacheProperties();
             EnsureStyles();
-            acceleratingList = BuildClipList(acceleratingSoundsProp, "Acceleration Clips");
-            deceleratingList = BuildClipList(deceleratingSoundsProp, "Deceleration Clips");
+            RefreshClipLists();
         }
 
         public override void OnInspectorGUI()
         {
             serializedObject.Update();
+            CacheProperties();
             EnsureStyles();
+            RefreshClipLists();
 
             DrawTopBar();
             EditorGUILayout.Space(6f);
@@ -96,17 +114,17 @@ namespace AroundTheGroundSimulator
                 EditorGUILayout.PropertyField(mixerProp);
                 EditorGUILayout.PropertyField(mixerTypeProp);
                 EditorGUILayout.Slider(masterVolumeProp, 0.007f, 1f);
-                EditorGUILayout.PropertyField(targetedShiftPitchProp);
+                EditorGUILayout.HelpBox("Per-clip base pitch comes from engine RPM / clip RPM. Global pitch remains user-adjustable through the pitch curve below.", MessageType.Info);
                 EditorGUILayout.PropertyField(autoBlipProp);
                 EditorGUILayout.PropertyField(rpmDeviationProp);
             });
 
             DrawFoldoutSection(ref showCurves, "Global Curves", () =>
             {
+                EditorGUILayout.HelpBox("Default global pitch is a flat 1.0 curve. You can edit it if you want additional global pitch shaping.", MessageType.Info);
                 EditorGUILayout.PropertyField(pitchCurveProp);
-                EditorGUILayout.PropertyField(volumeCurveProp);
                 EditorGUILayout.PropertyField(loadEffectivenessOnPitchProp);
-                EditorGUILayout.PropertyField(idlePitchProp);
+                EditorGUILayout.PropertyField(volumeCurveProp);
                 EditorGUILayout.PropertyField(idleVolumeProp);
             });
 
@@ -152,6 +170,7 @@ namespace AroundTheGroundSimulator
 
             DrawFoldoutSection(ref showTuning, "Tuning", () =>
             {
+                EditorGUILayout.HelpBox("Acceleration and deceleration pitch trims default to 0, but remain available as optional user overrides.", MessageType.Info);
                 EditorGUILayout.PropertyField(acPitchTrimProp);
                 EditorGUILayout.PropertyField(dcPitchTrimProp);
                 EditorGUILayout.PropertyField(maximumTheoricalRPMProp);
@@ -182,13 +201,27 @@ namespace AroundTheGroundSimulator
                     EditorGUILayout.PropertyField(burbleSoundsProp, true);
                     EditorGUILayout.PropertyField(burbleVolumeProp);
                     EditorGUILayout.PropertyField(burbleMinRPMProp);
-                    EditorGUILayout.PropertyField(burbleLoadThresholdProp);
+                    EditorGUILayout.PropertyField(burbleLoadLowThresholdProp);
+                    EditorGUILayout.PropertyField(burbleLoadHighThresholdProp);
                     EditorGUILayout.PropertyField(burbleRPMDropThresholdProp);
                     EditorGUILayout.PropertyField(burbleProbabilityProp);
                     EditorGUILayout.PropertyField(minBurbleDelayProp);
                     EditorGUILayout.PropertyField(maxBurbleDelayProp);
                     EditorGUILayout.PropertyField(burbleRandomPitchVariationProp);
                     EditorGUILayout.PropertyField(burbleFadeRateProp);
+                    EditorGUILayout.Space(6f);
+                    EditorGUILayout.LabelField("DCT Shift Overlay", EditorStyles.boldLabel);
+                    EditorGUILayout.PropertyField(enableDctShiftBurbleProp);
+                    if (enableDctShiftBurbleProp.boolValue)
+                    {
+                        EditorGUILayout.PropertyField(dctShiftBurbleSoundProp);
+                        EditorGUILayout.PropertyField(dctShiftBurbleVolumeProp);
+                        EditorGUILayout.PropertyField(dctShiftBurbleRpmVolumeInfluenceProp);
+                        EditorGUILayout.PropertyField(dctShiftBurbleMinRPMProp);
+                        EditorGUILayout.PropertyField(dctShiftBurbleMaxDurationProp);
+                        EditorGUILayout.PropertyField(dctShiftBurbleBasePitchProp);
+                        EditorGUILayout.PropertyField(dctShiftBurblePitchVariationProp);
+                    }
                 }
             });
 
@@ -206,6 +239,52 @@ namespace AroundTheGroundSimulator
                     EditorGUILayout.PropertyField(luggingFadeOutSpeedProp);
                     EditorGUILayout.PropertyField(luggingBasePitchProp);
                     EditorGUILayout.PropertyField(luggingRandomPitchVariationProp);
+                }
+            });
+
+            DrawFoldoutSection(ref showThrottleBody, "Throttle Body", () =>
+            {
+                EditorGUILayout.PropertyField(enableThrottleBodyProp);
+                if (enableThrottleBodyProp.boolValue)
+                {
+                    EditorGUILayout.HelpBox(
+                        "Intake Roar fires once when the throttle snaps open (tip-in).\n" +
+                        "Throttle Flutter fires once when the throttle snaps shut at high RPM (tip-out).\n" +
+                        "Both volumes scale linearly with normalised RPM — louder and higher-pitched at redline.",
+                        MessageType.Info);
+                    EditorGUILayout.PropertyField(intakeRoarSoundsProp, true);
+                    EditorGUILayout.PropertyField(intakeRoarVolumeProp);
+                    EditorGUILayout.Space(4f);
+                    EditorGUILayout.PropertyField(throttleFlutterSoundsProp, true);
+                    EditorGUILayout.PropertyField(throttleFlutterVolumeProp);
+                    EditorGUILayout.Space(4f);
+                    EditorGUILayout.PropertyField(throttleBodyPitchVariationProp);
+                    EditorGUILayout.PropertyField(intakeRoarLoadDeltaThresholdProp);
+                    EditorGUILayout.PropertyField(throttleFlutterLoadDeltaThresholdProp);
+                    EditorGUILayout.PropertyField(throttleBodyCooldownProp);
+                }
+            });
+
+            DrawFoldoutSection(ref showRedline, "Exhaust Redline", () =>
+            {
+                EditorGUILayout.PropertyField(enableRedlineEffectProp);
+                if (enableRedlineEffectProp.boolValue)
+                {
+                    EditorGUILayout.HelpBox(
+                        "Plays one-shot exhaust clips in a repeating loop while RPM stays within the redline window.\n" +
+                        "Delay and pitch are randomised each iteration to keep the sound organic.",
+                        MessageType.Info);
+                    EditorGUILayout.PropertyField(redlineSoundsProp, true);
+                    EditorGUILayout.PropertyField(redlineVolumeProp);
+                    EditorGUILayout.Space(4f);
+                    EditorGUILayout.PropertyField(redlineMinRPMProp);
+                    EditorGUILayout.PropertyField(redlineMaxRPMProp);
+                    EditorGUILayout.Space(4f);
+                    EditorGUILayout.PropertyField(redlineMinDelayProp);
+                    EditorGUILayout.PropertyField(redlineMaxDelayProp);
+                    EditorGUILayout.Space(4f);
+                    EditorGUILayout.PropertyField(redlineBasePitchProp);
+                    EditorGUILayout.PropertyField(redlinePitchVariationProp);
                 }
             });
 
@@ -469,39 +548,47 @@ namespace AroundTheGroundSimulator
         }
 
         private const float ClipRowH = 20f;
-        private const float ClipElementH = 62f;
+        private const float ClipElementH = 64f;
+
+        private void RefreshClipLists()
+        {
+            acceleratingList = BuildClipList(acceleratingSoundsProp, "Acceleration Clips");
+            deceleratingList = BuildClipList(deceleratingSoundsProp, "Deceleration Clips");
+        }
 
         private ReorderableList BuildClipList(SerializedProperty prop, string label)
         {
+            string propertyPath = prop.propertyPath;
             var list = new ReorderableList(serializedObject, prop, true, true, true, true)
             {
                 drawHeaderCallback = r => EditorGUI.LabelField(r, label),
                 elementHeightCallback = i => ClipElementH,
                 onAddCallback = l =>
                 {
-                    prop.arraySize++;
-                    var el = prop.GetArrayElementAtIndex(prop.arraySize - 1);
+                    serializedObject.Update();
+                    var liveProp = serializedObject.FindProperty(propertyPath);
+                    liveProp.arraySize++;
+                    var el = liveProp.GetArrayElementAtIndex(liveProp.arraySize - 1);
                     el.FindPropertyRelative("audioClip").objectReferenceValue = null;
                     el.FindPropertyRelative("rpmValue").intValue = 1000;
                     el.FindPropertyRelative("volumeOffset").floatValue = 0f;
                     el.FindPropertyRelative("pitchOffset").floatValue = 0f;
-                    el.FindPropertyRelative("rpmPitchTracking").floatValue = 1f;
-                    el.FindPropertyRelative("minPitch").floatValue = 0.5f;
-                    el.FindPropertyRelative("maxPitch").floatValue = 2.5f;
+                    el.FindPropertyRelative("loPitch").floatValue = 1f;
+                    el.FindPropertyRelative("hiPitch").floatValue = 1f;
                     el.FindPropertyRelative("description").stringValue = "";
                     serializedObject.ApplyModifiedProperties();
+                    serializedObject.Update();
                 }
             };
 
             list.drawElementCallback = (rect, index, active, focused) =>
             {
-                var el = prop.GetArrayElementAtIndex(index);
+                var liveProp = serializedObject.FindProperty(propertyPath);
+                var el = liveProp.GetArrayElementAtIndex(index);
                 var clipP = el.FindPropertyRelative("audioClip");
                 var rpmP = el.FindPropertyRelative("rpmValue");
-                var volP = el.FindPropertyRelative("volumeOffset");
-                var pitP = el.FindPropertyRelative("pitchOffset");
-                var minP = el.FindPropertyRelative("minPitch");
-                var maxP = el.FindPropertyRelative("maxPitch");
+                var loP = el.FindPropertyRelative("loPitch");
+                var hiP = el.FindPropertyRelative("hiPitch");
 
                 rect.y += 2f;
                 float w = rect.width;
@@ -515,38 +602,29 @@ namespace AroundTheGroundSimulator
                 Rect rpmFieldR = new Rect(rpmLabelR.xMax + 2f, r1y, 56f, fldH);
                 GUI.Label(rpmLabelR, "RPM", EditorStyles.miniLabel);
                 int newRpm = EditorGUI.IntField(rpmFieldR, rpmP.intValue);
-                if (newRpm != rpmP.intValue) rpmP.intValue = Mathf.Max(0, newRpm);
+                if (newRpm != rpmP.intValue) rpmP.intValue = Mathf.Max(1, newRpm);
 
-                float pitchLabelW = 42f;
-                GUI.Label(new Rect(rect.x, r2y, pitchLabelW, fldH), "Pitch", EditorStyles.miniLabel);
-
-                float sliderAreaX = rect.x + pitchLabelW + 4f;
-                float sliderWidth = (w - pitchLabelW - 20f) / 2f;
-                Rect loR = new Rect(sliderAreaX, r2y, sliderWidth, fldH);
-                Rect hiR = new Rect(loR.xMax + 6f, r2y, sliderWidth, fldH);
-
-                Rect loLabelR = new Rect(loR.x, r2y, 18f, fldH);
+                // Per-clip Hi/Lo pitch multipliers (default 1 = neutral).
+                float halfW = (w - 12f) * 0.5f;
+                Rect loLabelR = new Rect(rect.x, r2y, 18f, fldH);
+                Rect loFieldR = new Rect(loLabelR.xMax + 2f, r2y, halfW - 20f, fldH);
                 GUI.Label(loLabelR, "Lo", EditorStyles.miniLabel);
-                Rect loSliderR = new Rect(loLabelR.xMax + 2f, r2y, loR.width - 58f, fldH);
-                Rect loValR = new Rect(loSliderR.xMax + 2f, r2y, 36f, fldH);
-                EditorGUI.Slider(loSliderR, minP, 0.01f, 4f, GUIContent.none);
-                GUI.Label(loValR, minP.floatValue.ToString("F2"), EditorStyles.centeredGreyMiniLabel);
+                EditorGUI.Slider(loFieldR, loP, 0.01f, 10f, GUIContent.none);
 
-                Rect hiLabelR = new Rect(hiR.x, r2y, 18f, fldH);
+                Rect hiLabelR = new Rect(rect.x + halfW + 12f, r2y, 18f, fldH);
+                Rect hiFieldR = new Rect(hiLabelR.xMax + 2f, r2y, halfW - 20f, fldH);
                 GUI.Label(hiLabelR, "Hi", EditorStyles.miniLabel);
-                Rect hiSliderR = new Rect(hiLabelR.xMax + 2f, r2y, hiR.width - 58f, fldH);
-                Rect hiValR = new Rect(hiSliderR.xMax + 2f, r2y, 36f, fldH);
-                EditorGUI.Slider(hiSliderR, maxP, minP.floatValue, 4f, GUIContent.none);
-                GUI.Label(hiValR, maxP.floatValue.ToString("F2"), EditorStyles.centeredGreyMiniLabel);
+                EditorGUI.Slider(hiFieldR, hiP, 0.01f, 10f, GUIContent.none);
 
-                Rect vizR = new Rect(rect.x, r2y + fldH + 3f, w, 5f);
-                float normMin = Mathf.InverseLerp(0.01f, 4f, minP.floatValue);
-                float normMax = Mathf.InverseLerp(0.01f, 4f, maxP.floatValue);
-                float vizL = Mathf.Lerp(vizR.x, vizR.xMax, normMin);
-                float vizR2 = Mathf.Lerp(vizR.x, vizR.xMax, normMax);
-                EditorGUI.DrawRect(new Rect(vizL, vizR.y, vizR2 - vizL, vizR.height), new Color(0.23f, 0.76f, 1f, 0.6f));
-                GUI.Label(new Rect(vizR.x, vizR.y + 5f, 20f, 12f), "0", EditorStyles.miniLabel);
-                GUI.Label(new Rect(vizR.xMax - 12f, vizR.y + 5f, 16f, 12f), "4", EditorStyles.miniLabel);
+                float maxRpm = Mathf.Max(1000f, maximumTheoricalRPMProp.floatValue);
+                float currentRpm = ResolveCurrentRpm(maxRpm);
+                float progress = Mathf.Clamp01(currentRpm / maxRpm);
+                float hiLoMul = Mathf.Lerp(loP.floatValue, hiP.floatValue, progress);
+                float previewPitch = Mathf.Clamp(currentRpm / Mathf.Max(1f, rpmP.intValue) * hiLoMul, 0.01f, 10f);
+                Rect infoRect = new Rect(rect.x, r2y + ClipRowH + 2f, w, fldH);
+                GUI.Label(infoRect,
+                    $"Pitch = engine RPM / clip RPM × Hi/Lo  •  Preview {previewPitch:0.00}x at {currentRpm:0} RPM",
+                    mutedLabelStyle);
             };
 
             return list;
@@ -572,13 +650,11 @@ namespace AroundTheGroundSimulator
             mixerProp = serializedObject.FindProperty("mixer");
             mixerTypeProp = serializedObject.FindProperty("mixerType");
             masterVolumeProp = serializedObject.FindProperty("masterVolume");
-            targetedShiftPitchProp = serializedObject.FindProperty("targetedShiftPitch");
             autoBlipProp = serializedObject.FindProperty("autoBlip");
             rpmDeviationProp = serializedObject.FindProperty("rpmdeviation");
             pitchCurveProp = serializedObject.FindProperty("pitchCurve");
             volumeCurveProp = serializedObject.FindProperty("volumeCurve");
             loadEffectivenessOnPitchProp = serializedObject.FindProperty("loadEffectivenessOnPitch");
-            idlePitchProp = serializedObject.FindProperty("idlePitch");
             idleVolumeProp = serializedObject.FindProperty("idleVolume");
             keepBankClipsPlayingProp = serializedObject.FindProperty("keepBankClipsPlaying");
             clipVolumeResponseTimeProp = serializedObject.FindProperty("clipVolumeResponseTime");
@@ -618,13 +694,22 @@ namespace AroundTheGroundSimulator
             burbleSoundsProp = serializedObject.FindProperty("burbleSounds");
             burbleVolumeProp = serializedObject.FindProperty("burbleVolume");
             burbleMinRPMProp = serializedObject.FindProperty("burbleMinRPM");
-            burbleLoadThresholdProp = serializedObject.FindProperty("burbleLoadThreshold");
+            burbleLoadLowThresholdProp = serializedObject.FindProperty("burbleLoadLowThreshold");
+            burbleLoadHighThresholdProp = serializedObject.FindProperty("burbleLoadHighThreshold");
             burbleRPMDropThresholdProp = serializedObject.FindProperty("burbleRPMDropThreshold");
             burbleProbabilityProp = serializedObject.FindProperty("burbleProbability");
             minBurbleDelayProp = serializedObject.FindProperty("minBurbleDelay");
             maxBurbleDelayProp = serializedObject.FindProperty("maxBurbleDelay");
             burbleRandomPitchVariationProp = serializedObject.FindProperty("burbleRandomPitchVariation");
             burbleFadeRateProp = serializedObject.FindProperty("burbleFadeRate");
+            enableDctShiftBurbleProp = serializedObject.FindProperty("enableDctShiftBurble");
+            dctShiftBurbleSoundProp = serializedObject.FindProperty("dctShiftBurbleSound");
+            dctShiftBurbleVolumeProp = serializedObject.FindProperty("dctShiftBurbleVolume");
+            dctShiftBurbleRpmVolumeInfluenceProp = serializedObject.FindProperty("dctShiftBurbleRpmVolumeInfluence");
+            dctShiftBurbleMinRPMProp = serializedObject.FindProperty("dctShiftBurbleMinRPM");
+            dctShiftBurbleMaxDurationProp = serializedObject.FindProperty("dctShiftBurbleMaxDuration");
+            dctShiftBurbleBasePitchProp = serializedObject.FindProperty("dctShiftBurbleBasePitch");
+            dctShiftBurblePitchVariationProp = serializedObject.FindProperty("dctShiftBurblePitchVariation");
             enableEngineLuggingProp = serializedObject.FindProperty("enableEngineLugging");
             luggingSoundsProp = serializedObject.FindProperty("luggingSounds");
             luggingVolumeProp = serializedObject.FindProperty("luggingVolume");
@@ -635,6 +720,28 @@ namespace AroundTheGroundSimulator
             luggingFadeOutSpeedProp = serializedObject.FindProperty("luggingFadeOutSpeed");
             luggingBasePitchProp = serializedObject.FindProperty("luggingBasePitch");
             luggingRandomPitchVariationProp = serializedObject.FindProperty("luggingRandomPitchVariation");
+
+            // Throttle Body
+            enableThrottleBodyProp = serializedObject.FindProperty("enableThrottleBody");
+            intakeRoarSoundsProp = serializedObject.FindProperty("intakeRoarSounds");
+            throttleFlutterSoundsProp = serializedObject.FindProperty("throttleFlutterSounds");
+            intakeRoarVolumeProp = serializedObject.FindProperty("intakeRoarVolume");
+            throttleFlutterVolumeProp = serializedObject.FindProperty("throttleFlutterVolume");
+            throttleBodyPitchVariationProp = serializedObject.FindProperty("throttleBodyPitchVariation");
+            intakeRoarLoadDeltaThresholdProp = serializedObject.FindProperty("intakeRoarLoadDeltaThreshold");
+            throttleFlutterLoadDeltaThresholdProp = serializedObject.FindProperty("throttleFlutterLoadDeltaThreshold");
+            throttleBodyCooldownProp = serializedObject.FindProperty("throttleBodyCooldown");
+
+            // Redline
+            enableRedlineEffectProp = serializedObject.FindProperty("enableRedlineEffect");
+            redlineSoundsProp = serializedObject.FindProperty("redlineSounds");
+            redlineVolumeProp = serializedObject.FindProperty("redlineVolume");
+            redlineMinRPMProp = serializedObject.FindProperty("redlineMinRPM");
+            redlineMaxRPMProp = serializedObject.FindProperty("redlineMaxRPM");
+            redlineMinDelayProp = serializedObject.FindProperty("redlineMinDelay");
+            redlineMaxDelayProp = serializedObject.FindProperty("redlineMaxDelay");
+            redlineBasePitchProp = serializedObject.FindProperty("redlineBasePitch");
+            redlinePitchVariationProp = serializedObject.FindProperty("redlinePitchVariation");
         }
     }
 }
