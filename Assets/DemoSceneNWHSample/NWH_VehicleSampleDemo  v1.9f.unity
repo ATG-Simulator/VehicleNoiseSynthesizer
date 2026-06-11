@@ -1978,6 +1978,10 @@ MonoBehaviour:
   reverbMixerParamName: ReverbAmount
   loadCrossoverPoint: 0
   loadBlendWidth: 0.01
+  filterLPFSlewHz: 800
+  filterHPFSlewHz: 180
+  filterReverbSlewDbS: 2500
+  filterParamSlewRate: 1
 --- !u!1 &1322409926 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 100012, guid: 0f7b742293ecd554ead9622542ee2546, type: 3}
@@ -2812,6 +2816,10 @@ MonoBehaviour:
   reverbMixerParamName: ReverbAmount
   loadCrossoverPoint: 0
   loadBlendWidth: 0.01
+  filterLPFSlewHz: 800
+  filterHPFSlewHz: 180
+  filterReverbSlewDbS: 2500
+  filterParamSlewRate: 1
 --- !u!82 &1598001561734144962
 AudioSource:
   m_ObjectHideFlags: 0

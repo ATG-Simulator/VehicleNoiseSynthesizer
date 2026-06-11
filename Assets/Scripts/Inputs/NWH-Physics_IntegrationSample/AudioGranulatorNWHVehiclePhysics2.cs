@@ -7,7 +7,7 @@ using UnityEngine;
 
 namespace AroundTheGroundSimulator
 {
-    /// <summary>Vehicle Noise Synthesizer v1.9 — NWH Vehicle Physics 2 integration sample with pitch oscillation.</summary>
+    /// <summary>Vehicle Noise Synthesizer v1.9 - NWH Vehicle Physics 2 integration sample with pitch oscillation.</summary>
     [RequireComponent(typeof(VehicleNoiseSynthesizer))]
     public class AudioGranulatorNWHVehiclePhysics2 : MonoBehaviour
     {

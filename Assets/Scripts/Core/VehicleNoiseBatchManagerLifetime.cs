@@ -5,7 +5,7 @@ using UnityEditor;
 
 namespace AroundTheGroundSimulator
 {
-    /// <summary>Vehicle Noise Synthesizer v1.9 — manages NativeArray disposal on domain reload and play-mode exit.</summary>
+    /// <summary>Vehicle Noise Synthesizer v1.9 - manages NativeArray disposal on domain reload and play-mode exit.</summary>
 #if !UNITY_WEBGL
     internal static class VehicleNoiseBatchManagerLifetime
     {

@@ -22,13 +22,13 @@ This release delivers a significant editor UX overhaul, fixes critical workflow 
 
 **New & Improved:**
 
-- **Event-Driven Throttle Body & DCT Shift Effects:** Throttle roar (`OnThrottleTipIn`), throttle flutter (`OnThrottleTipOut`), and DCT shift burble (`OnGearShift`) are now triggered via public methods called from the integration script — not by fragile `deltaLoad` thresholds. The old threshold fields (`intakeRoarLoadDeltaThreshold`, `throttleFlutterLoadDeltaThreshold`) are deprecated and no longer read. The `dctShiftBurbleFiredThisDecrease` flag has been removed. See the [Developer Reference](https://docs.atg-simulator.com/vehiclenoisesimulator) and [Migration Guide](VNS_v1.8f2_to_v1.9_Migration_Guide.md) for details.
+- **Event-Driven Throttle Body & DCT Shift Effects:** Throttle roar (`OnThrottleTipIn`), throttle flutter (`OnThrottleTipOut`), and DCT shift burble (`OnGearShift`) are now triggered via public methods called from the integration script - not by fragile `deltaLoad` thresholds. The old threshold fields (`intakeRoarLoadDeltaThreshold`, `throttleFlutterLoadDeltaThreshold`) are deprecated and no longer read. The `dctShiftBurbleFiredThisDecrease` flag has been removed. See the [Developer Reference](https://docs.atg-simulator.com/vehiclenoisesimulator) and [Migration Guide](VNS_v1.8f2_to_v1.9_Migration_Guide.md) for details.
 - **Editor UX Overhaul:** RPM field is now a plain integer text box (the old Range slider made precise values impossible to enter). Per-clip pitch sliders include numeric readouts and a labeled range bar so users can see exact min/max values at a glance.
 - **Accurate Blend Visualization:** The volume envelope graph now highlights only the two active neighbour clips (the runtime only ever blends two). Inactive clips are dimmed to 13% alpha, eliminating confusion about how many layers blend at once. An active-pair label shows exactly which clips are blending.
 - **Debug RPM Tracking:** The graph marker and combustion preview now correctly follow `debugrpm` in both edit and play modes when debug mode is enabled.
 - **ReorderableList Fix:** Auto-sorting has been removed from the editor-time path. The inspector ReorderableList now preserves the user's manual clip order. Sorting is performed internally by `BuildRpmTables` and `BuildBankLayers` at runtime only, so the neighbour-pair algorithm always receives correctly ordered data.
 - **Dual Input System:** The `AudioGranulatorSimpleUI` test harness now supports both Unity's New Input System (`Keyboard.current`) and the Legacy Input Manager (`Input.GetKey`), selected automatically via `ENABLE_INPUT_SYSTEM` / `ENABLE_LEGACY_INPUT_MANAGER` preprocessor guards.
-- **Codebase Cleanup:** All source files have been standardized — section-header comments, `[fix]` annotations, and inline notes removed. Only `/// <summary>` XML doc comments and `[Tooltip]` attributes remain. All scripts tagged with v1.9f version headers.
+- **Codebase Cleanup:** All source files have been standardized - section-header comments, `[fix]` annotations, and inline notes removed. Only `/// <summary>` XML doc comments and `[Tooltip]` attributes remain. All scripts tagged with v1.9f version headers.
 
 **Installation:**
 
@@ -51,8 +51,6 @@ The developer reference includes:
 - Public Event API documentation
 - NWH Vehicle Physics 2 integration guide
 - Setup instructions and common pitfalls
-
-📋 **Migration Guide:** [`VNS_v1.8f2_to_v1.9_Migration_Guide.md`](VNS_v1.8f2_to_v1.9_Migration_Guide.md) — step-by-step code-level guide for upgrading from older versions.
 
 ---
 
@@ -142,7 +140,7 @@ Either download the UnityPackage or a zipped archive of this repo and import it 
 1. Add the `VehicleNoiseSynthesizer` component to a GameObject
 2. Assign an AudioSource Template and populate the Acceleration (and optionally Deceleration) clip banks
 3. Set per-clip RPM values and min/max pitch ranges
-4. Use the inspector blend visualization to verify your curves — the graph highlights the two active clips and dims inactive ones
+4. Use the inspector blend visualization to verify your curves - the graph highlights the two active clips and dims inactive ones
 5. Feed RPM and Load values via script (see `AudioGranulatorSimpleUI` for a test harness with dual Input System support, or the NWH adapters for real vehicle integration)
 6. **Important:** If using a custom input script, call `OnThrottleTipIn`, `OnThrottleTipOut`, and `OnGearShift` to enable throttle-body and DCT effects. See the [Developer Reference](https://docs.atg-simulator.com/vehiclenoisesimulator) for the full API.
 

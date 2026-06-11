@@ -14,7 +14,7 @@ using Unity.Mathematics;
 
 namespace AroundTheGroundSimulator
 {
-    /// <summary>Vehicle Noise Synthesizer v1.9 — real-time engine audio synthesis with Burst-accelerated neighbour-pair blending.</summary>
+    /// <summary>Vehicle Noise Synthesizer v1.9 - real-time engine audio synthesis with Burst-accelerated neighbour-pair blending.</summary>
     [AddComponentMenu("ATG Audio/Vehicle Noise Synthesizer")]
     [HelpURL("https://github.com/ImDanOush/VehicleNoiseSynthesizer")]
     public class VehicleNoiseSynthesizer : MonoBehaviour
@@ -169,7 +169,7 @@ namespace AroundTheGroundSimulator
             public float pairHysteresisRpm;
             public float pairHoldCycles;
             public float currentTime;            // Time.time snapshot
-            public float fixedDeltaTime;         // Time.fixedDeltaTime — used to quantize hold to whole physics ticks
+            public float fixedDeltaTime;         // Time.fixedDeltaTime - used to quantize hold to whole physics ticks
         }
 
         private struct VehicleCalcOutput
@@ -477,7 +477,7 @@ namespace AroundTheGroundSimulator
 
                     if (wantsSwitch && passesHysteresis)
                     {
-                        if (idealHi > stateHighIndex)
+                        if (idealHi > stateHighIndex && stateHighIndex < count - 1)
                         {
                             lo = stateHighIndex < count ? stateHighIndex : count - 1;
                             hi = lo + 1 < count ? lo + 1 : lo;
@@ -523,7 +523,7 @@ namespace AroundTheGroundSimulator
                     if (bankVolumeLimit > 0f) g = g > bankVolumeLimit ? bankVolumeLimit : g;
                     outLowVolume = outHighVolume = g;
                     outLowPitch = outHighPitch =
-                        EvalPitchInJob(ld, inp.clampedRpm, finalPitch, bankPitchTrim, inp.maxRpm);
+                        EvalPitchInJob(ld, inp.clampedRpm, finalPitch, bankPitchTrim, inp.maxRpm, inp.idleRpm);
                     return;
                 }
 
@@ -544,18 +544,20 @@ namespace AroundTheGroundSimulator
 
                 outLowVolume = gLo;
                 outHighVolume = gHi;
-                outLowPitch = EvalPitchInJob(ldLo, inp.clampedRpm, finalPitch, bankPitchTrim, inp.maxRpm);
-                outHighPitch = EvalPitchInJob(ldHi, inp.clampedRpm, finalPitch, bankPitchTrim, inp.maxRpm);
+                outLowPitch = EvalPitchInJob(ldLo, inp.clampedRpm, finalPitch, bankPitchTrim, inp.maxRpm, inp.idleRpm);
+                outHighPitch = EvalPitchInJob(ldHi, inp.clampedRpm, finalPitch, bankPitchTrim, inp.maxRpm, inp.idleRpm);
             }
 
             private static float EvalPitchInJob(
                 LayerData ld, float clampedRpm, float finalPitch,
-                float bankPitchTrim, float maxRpm)
+                float bankPitchTrim, float maxRpm, float idleRpm)
             {
                 float referenceRpm = MathMax(1f, ld.referenceRpm);
                 float ratioPitch = (clampedRpm / referenceRpm) * finalPitch;
 
-                float progress = Clamp01(clampedRpm / MathMax(1f, maxRpm));
+                // Matches InverseLerp(idleRpm, maxRpm, clampedRpm) exactly,
+                // making idleRpm the zero point - consistent with normalizedRpm.
+                float progress = Clamp01((clampedRpm - idleRpm) / MathMax(1f, maxRpm - idleRpm));
                 float hiLoMul = Lerp(ld.minPitch, ld.maxPitch, progress);
 
                 float pitch = ratioPitch * hiLoMul + bankPitchTrim + ld.pitchOffset;
@@ -572,8 +574,6 @@ namespace AroundTheGroundSimulator
                 float s = 4f * x * (pi - x) / (5f * pi * pi - 4f * x * (pi - x));
                 return inv ? -s : s;
             }
-            private static float MathCos(float x) => MathSin2(x + 1.5707963f);
-            private static float MathSin(float x) => MathSin2(x);
         }
 
         /// <summary>Owns NativeArrays, drives the Burst job each frame, and distributes results back to each synthesizer instance.</summary>
@@ -594,7 +594,7 @@ namespace AroundTheGroundSimulator
             private static NativeArray<float> sBakedLowPass;
             private static int sAllocatedCount = 0;
             private static bool sNeedsRebuild = false;
-            private static float sLastDispatchFixedTime = -1f;
+            private static int sLastDispatchFrame = -1;
 
             public static void Register(VehicleNoiseSynthesizer instance)
             {
@@ -609,12 +609,18 @@ namespace AroundTheGroundSimulator
 
             public static void ExecuteBatchIfNeeded(float deltaTime)
             {
-                if (!ShouldDispatchThisFixedTick()) return;
+                // Rebuild check BEFORE ShouldDispatchThisFixedTick so the frame
+                // token is not consumed on rebuild frames - a subsequent fixed tick
+                // in the same frame can still dispatch after the arrays are ready.
                 int count = sInstances.Count;
-                if (count == 0) return;
-
                 if (sNeedsRebuild || count != sAllocatedCount)
-                    RebuildNativeArrays(count);
+                {
+                    if (count > 0) RebuildNativeArrays(count);
+                    return;
+                }
+
+                if (!ShouldDispatchThisFixedTick()) return;
+                if (count == 0) return;
 
                 for (int v = 0; v < count; v++)
                 {
@@ -740,9 +746,9 @@ namespace AroundTheGroundSimulator
 
             public static bool ShouldDispatchThisFixedTick()
             {
-                float ft = Time.fixedTime;
-                if (sLastDispatchFixedTime == ft) return false;
-                sLastDispatchFixedTime = ft;
+                int f = Time.frameCount;
+                if (sLastDispatchFrame == f) return false;
+                sLastDispatchFrame = f;
                 return true;
             }
         }
@@ -929,10 +935,10 @@ namespace AroundTheGroundSimulator
             ApplyTargetsToBank(accLayers, accTargetVolumes, accTargetPitches, deltaTime);
             ApplyTargetsToBank(decLayers, decTargetVolumes, decTargetPitches, deltaTime);
 
-            float slewBase = deltaTime * FilterSlew;
-            float slew2000 = slewBase * 2000f;
-            float slew180 = slewBase * 180f;
-            float slew2500 = slewBase * 2500f;
+            float slew2000 = filterLPFSlewHz * deltaTime;
+            float slew180 = filterHPFSlewHz * deltaTime;
+            float slew2500 = filterReverbSlewDbS * deltaTime;
+            float slewBase = filterParamSlewRate * deltaTime;
 
             ApplyPrecomputedFilters(accLayers, accTargetVolumes, _lastJobOutput,
                 slewBase, slew2000, slew180, slew2500);
@@ -1376,7 +1382,22 @@ namespace AroundTheGroundSimulator
         private List<AudioSource> luggingAudioSources;
         private const int LUGGINGAUDIOPOOLSIZE = 2;
         private const int BURBLEAUDIOPOOLSIZE = 5;
-        private const float FilterSlew = 16f;
+        [Header("Filter Slew Rates")]
+        [Range(100f, 5000f)]
+        [Tooltip("Max Hz/tick the low-pass cutoff may move per fixed update.")]
+        public float filterLPFSlewHz = 800f;
+
+        [Range(10f, 500f)]
+        [Tooltip("Max Hz/tick the high-pass cutoff may move per fixed update.")]
+        public float filterHPFSlewHz = 180f;
+
+        [Range(500f, 5000f)]
+        [Tooltip("Max dB/tick the reverb level may move per fixed update.")]
+        public float filterReverbSlewDbS = 2500f;
+
+        [Range(0.1f, 5f)]
+        [Tooltip("Slew rate multiplier for 0–1 range parameters (Q, distortion, chorus).")]
+        public float filterParamSlewRate = 1f;
         private readonly List<RuntimeLayer> accLayers = new List<RuntimeLayer>();
         private readonly List<RuntimeLayer> decLayers = new List<RuntimeLayer>();
         private readonly List<AudioSource> burbleAudioSources = new List<AudioSource>();
@@ -1561,30 +1582,37 @@ namespace AroundTheGroundSimulator
 
         private void OnValidate()
         {
-            cylinderCount = Mathf.Max(1, cylinderCount);
-            rpmdeviation = Mathf.Max(1, rpmdeviation);
-            maximumTheoricalRPM = Mathf.Max(1000f, maximumTheoricalRPM);
-            burbleLoadLowThreshold = Mathf.Clamp01(burbleLoadLowThreshold);
-            burbleLoadHighThreshold = Mathf.Clamp(burbleLoadHighThreshold, burbleLoadLowThreshold, 1f);
-            minBurbleDelay = Mathf.Max(0.01f, minBurbleDelay);
-            maxBurbleDelay = Mathf.Max(minBurbleDelay, maxBurbleDelay);
-            dctShiftBurbleMaxDuration = Mathf.Max(0.01f, dctShiftBurbleMaxDuration);
-            dctShiftBurbleBasePitch = Mathf.Clamp(dctShiftBurbleBasePitch, 0.5f, 2f);
-            dctShiftBurblePitchVariation = Mathf.Clamp(dctShiftBurblePitchVariation, 0f, 0.3f);
-            loadVolumeChangerMinValue = Mathf.Clamp(loadVolumeChangerMinValue, 0f, 0.99f);
-            loadBlendWidth = Mathf.Max(0.01f, loadBlendWidth);
-            clipVolumeResponseTime = Mathf.Max(0.005f, clipVolumeResponseTime);
-            clipPitchResponseTime = Mathf.Max(0.005f, clipPitchResponseTime);
-            rpmResponseTime = Mathf.Max(0.005f, rpmResponseTime);
-            loadResponseTime = Mathf.Max(0.005f, loadResponseTime);
-            pairHysteresisRpm = Mathf.Max(0f, pairHysteresisRpm);
-            pairHoldCycles = Mathf.Max(0f, pairHoldCycles);
-            combustionEventsPerRev = ComputeCombustionEventsPerRevolution();
-            NormalizeClipSettings(acceleratingSounds);
-            NormalizeClipSettings(deceleratingSounds);
-            if (!Application.isPlaying) { BuildRuntimeConfiguration(); BakeAllCurves(); return; }
-            BakeAllCurves();
-            Activate();
+            try
+            {
+                cylinderCount = Mathf.Max(1, cylinderCount);
+                rpmdeviation = Mathf.Max(1, rpmdeviation);
+                maximumTheoricalRPM = Mathf.Max(1000f, maximumTheoricalRPM);
+                burbleLoadLowThreshold = Mathf.Clamp01(burbleLoadLowThreshold);
+                burbleLoadHighThreshold = Mathf.Clamp(burbleLoadHighThreshold, burbleLoadLowThreshold, 1f);
+                minBurbleDelay = Mathf.Max(0.01f, minBurbleDelay);
+                maxBurbleDelay = Mathf.Max(minBurbleDelay, maxBurbleDelay);
+                dctShiftBurbleMaxDuration = Mathf.Max(0.01f, dctShiftBurbleMaxDuration);
+                dctShiftBurbleBasePitch = Mathf.Clamp(dctShiftBurbleBasePitch, 0.5f, 2f);
+                dctShiftBurblePitchVariation = Mathf.Clamp(dctShiftBurblePitchVariation, 0f, 0.3f);
+                loadVolumeChangerMinValue = Mathf.Clamp(loadVolumeChangerMinValue, 0f, 0.99f);
+                loadBlendWidth = Mathf.Max(0.01f, loadBlendWidth);
+                clipVolumeResponseTime = Mathf.Max(0.005f, clipVolumeResponseTime);
+                clipPitchResponseTime = Mathf.Max(0.005f, clipPitchResponseTime);
+                rpmResponseTime = Mathf.Max(0.005f, rpmResponseTime);
+                loadResponseTime = Mathf.Max(0.005f, loadResponseTime);
+                pairHysteresisRpm = Mathf.Max(0f, pairHysteresisRpm);
+                pairHoldCycles = Mathf.Max(0f, pairHoldCycles);
+                combustionEventsPerRev = ComputeCombustionEventsPerRevolution();
+                NormalizeClipSettings(acceleratingSounds);
+                NormalizeClipSettings(deceleratingSounds);
+                if (!Application.isPlaying) { BuildRuntimeConfiguration(); BakeAllCurves(); return; }
+                BakeAllCurves();
+                Activate();
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"VNS OnValidate error (likely mid-edit state): {e.Message}", this);
+            }
         }
 
         private void NormalizeClipSettings(List<EngineAudioClipData> clips)
@@ -2042,9 +2070,11 @@ namespace AroundTheGroundSimulator
         private float EvaluateLayerPitch(RuntimeLayer layer, float clampedRpm, float finalPitch, float bankPitchTrim)
         {
             // Mirror of EvalPitchInJob for the non-Burst (WebGL) path.
+            // progress uses InverseLerp(idleRpm, maxRpm, clampedRpm) semantics so
+            // idleRpm is the zero-point, consistent with normalizedRpm everywhere else.
             float referenceRpm = Mathf.Max(1f, layer.referenceRpm);
             float ratioPitch = (clampedRpm / referenceRpm) * finalPitch;
-            float progress = Mathf.Clamp01(clampedRpm / Mathf.Max(1f, _maxRpm));
+            float progress = Mathf.Clamp01((clampedRpm - _idleRpm) / Mathf.Max(1f, _maxRpm - _idleRpm));
             float hiLoMul = Mathf.Lerp(layer.minPitch, layer.maxPitch, progress);
             float pitch = ratioPitch * hiLoMul + bankPitchTrim + layer.pitchOffset;
             return Mathf.Clamp(pitch, 0.01f, 10f);
@@ -2189,10 +2219,10 @@ namespace AroundTheGroundSimulator
             float reverbDecay = Mathf.Lerp(0.8f, 2.3f, reverbAmount);
             float reverbAmountDb = Mathf.Lerp(-80f, 0f, reverbAmount);
 
-            float slewBase = deltaTime * FilterSlew;
-            float slew2000 = slewBase * 2000f;
-            float slew180 = slewBase * 180f;
-            float slew2500 = slewBase * 2500f;
+            float slew2000 = filterLPFSlewHz * deltaTime;
+            float slew180 = filterHPFSlewHz * deltaTime;
+            float slew2500 = filterReverbSlewDbS * deltaTime;
+            float slewBase = filterParamSlewRate * deltaTime;
 
             for (int i = 0; i < bank.Count; i++)
             {
@@ -2282,6 +2312,7 @@ namespace AroundTheGroundSimulator
             }
 
             int clipIndex = UnityEngine.Random.Range(0, burbleSounds.Length);
+            freeSource.Stop();           // flush any stale buffer before reassigning clip
             freeSource.clip = burbleSounds[clipIndex];
             freeSource.volume = burbleVolume;
             freeSource.pitch = 1f + UnityEngine.Random.Range(-burbleRandomPitchVariation, burbleRandomPitchVariation);
@@ -2339,9 +2370,9 @@ namespace AroundTheGroundSimulator
             float totalWet = chorusWet * 0.6f + chorusWet * 0.3f + chorusWet * 0.1f;
             float chorusDry = Mathf.Max(0f, 1f - totalWet);
 
-            float slewBase = deltaTime * FilterSlew;
-            float slew2000 = slewBase * 2000f;
-            float slew180 = slewBase * 180f;
+            float slew2000 = filterLPFSlewHz * deltaTime;
+            float slew180 = filterHPFSlewHz * deltaTime;
+            float slewBase = filterParamSlewRate * deltaTime;
 
             //dctShiftBurbleLowPass.cutoffFrequency = Mathf.MoveTowards(dctShiftBurbleLowPass.cutoffFrequency, lowPassTarget, slew2000);
             //dctShiftBurbleLowPass.lowpassResonanceQ = Mathf.MoveTowards(dctShiftBurbleLowPass.lowpassResonanceQ, lowPassQ, slewBase);

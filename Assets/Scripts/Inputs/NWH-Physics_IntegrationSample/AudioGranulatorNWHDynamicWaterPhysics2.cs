@@ -6,7 +6,7 @@ using System.Collections.Generic;
 using UnityEngine;
 namespace AroundTheGroundSimulator
 {
-    /// <summary>Vehicle Noise Synthesizer v1.9 — NWH Dynamic Water Physics 2 integration sample.</summary>
+    /// <summary>Vehicle Noise Synthesizer v1.9 - NWH Dynamic Water Physics 2 integration sample.</summary>
     [RequireComponent(typeof(VehicleNoiseSynthesizer))]
     public class AudioGranulatorNWHDynamicWaterPhysics2 : MonoBehaviour
     {
