@@ -1,12 +1,13 @@
 # Vehicle Noise Synthesizer
+
 https://github.com/user-attachments/assets/0140613e-f241-4938-af58-fb6ada2ee422
+
 ## ATTENTION
 
 1. For the latest version, simply clone the repo or download the Unitypackage.
-2. The Red Sports Car Demo for the NWH Vehicle Physics 2 scene is not properly set up and therefore outputs subpar audio.
-3. If you do not own an NWH Physics asset for your project, delete the two related scripts in the Input folder.
+2. If you do not own an NWH Physics asset for your project, delete the two related scripts in the Input folder.
 
-VNS is an open-source, free audio addon primarily designed for Unity to simulate vehicle sounds based on engine RPM, similar to a granulator, without dependencies such as FMOD.
+VNS is an open-source, free, multi-threaded async audio add-on primarily designed for Unity to simulate vehicle sounds based on engine RPM, similar to a granulator, and it has no dependencies such as FMOD. Originally designed for [my hobby project](https://atg-simulator.com/). It is best for transmission, exhaust, engine, and intake sounds and is intended for each of those audio sources separately.
 
 ![{ADC15B13-CDF1-412F-A49A-F42651C76447}](https://github.com/user-attachments/assets/f12cac05-6ac5-4c41-8234-d67f64bf8363)
 
@@ -14,28 +15,12 @@ VNS is an open-source, free audio addon primarily designed for Unity to simulate
 Vehicle Sound Synthesizer • Enhanced Loop-based Vehicle Noise Simulator • v1.9f
 ```
 
----
+### Installation:
 
-### Latest: v1.9f (June 2026)
-
-This release delivers a significant editor UX overhaul, fixes critical workflow issues with the clip ReorderableList, adds dual Input System compatibility, migrates throttle-body and DCT shift effects to an event-driven architecture, and performs a full codebase cleanup.
-
-**New & Improved:**
-
-- **Event-Driven Throttle Body & DCT Shift Effects:** Throttle roar (`OnThrottleTipIn`), throttle flutter (`OnThrottleTipOut`), and DCT shift burble (`OnGearShift`) are now triggered via public methods called from the integration script - not by fragile `deltaLoad` thresholds. The old threshold fields (`intakeRoarLoadDeltaThreshold`, `throttleFlutterLoadDeltaThreshold`) are deprecated and no longer read. The `dctShiftBurbleFiredThisDecrease` flag has been removed. See the [Developer Reference](https://docs.atg-simulator.com/vehiclenoisesimulator) and [Migration Guide](VNS_v1.8f2_to_v1.9_Migration_Guide.md) for details.
-- **Editor UX Overhaul:** RPM field is now a plain integer text box (the old Range slider made precise values impossible to enter). Per-clip pitch sliders include numeric readouts and a labeled range bar so users can see exact min/max values at a glance.
-- **Accurate Blend Visualization:** The volume envelope graph now highlights only the two active neighbour clips (the runtime only ever blends two). Inactive clips are dimmed to 13% alpha, eliminating confusion about how many layers blend at once. An active-pair label shows exactly which clips are blending.
-- **Debug RPM Tracking:** The graph marker and combustion preview now correctly follow `debugrpm` in both edit and play modes when debug mode is enabled.
-- **ReorderableList Fix:** Auto-sorting has been removed from the editor-time path. The inspector ReorderableList now preserves the user's manual clip order. Sorting is performed internally by `BuildRpmTables` and `BuildBankLayers` at runtime only, so the neighbour-pair algorithm always receives correctly ordered data.
-- **Dual Input System:** The `AudioGranulatorSimpleUI` test harness now supports both Unity's New Input System (`Keyboard.current`) and the Legacy Input Manager (`Input.GetKey`), selected automatically via `ENABLE_INPUT_SYSTEM` / `ENABLE_LEGACY_INPUT_MANAGER` preprocessor guards.
-- **Codebase Cleanup:** All source files have been standardized - section-header comments, `[fix]` annotations, and inline notes removed. Only `/// <summary>` XML doc comments and `[Tooltip]` attributes remain. All scripts tagged with v1.9f version headers.
-
-**Installation:**
-
-1.  **Requirements:** Unity 2021.3 or newer. The `Unity.Mathematics` and `Unity.Burst` packages are required for the non-WebGL path.
-2.  **Download:** Clone this repository directly into your Unity project's `Assets` folder. Do not use the old `.unitypackage` releases as they are outdated.
-3.  **Setup:** Add the `VehicleNoiseSynthesizer` component to your vehicle's audio root GameObject.
-4.  **Custom input scripts:** If you use a custom integration (not `AudioGranulatorNWHVehiclePhysics2`), you must call `OnThrottleTipIn`, `OnThrottleTipOut`, and `OnGearShift` at the appropriate moments, or the throttle-body and DCT shift burble effects will never play. Refer to the [Developer Reference](https://docs.atg-simulator.com/vehiclenoisesimulator) for the full API.
+1.   **Requirements:** Unity 2021.3 or newer. The `Unity.Mathematics` and `Unity.Burst` packages are required for the non-WebGL path.
+2.   **Download:** Clone this repository directly into your Unity project's `Assets` folder. Do not use the old `.unitypackage` releases as they are outdated.
+3.   **Setup:** Add the `VehicleNoiseSynthesizer` component to your vehicle's audio root GameObject.
+4.   **Custom input scripts:** If you use a custom integration (not `AudioGranulatorNWHVehiclePhysics2`), you must call `OnThrottleTipIn`, `OnThrottleTipOut`, and `OnGearShift` at the appropriate moments, or the throttle-body and DCT shift burble effects will never play. Refer to the [Developer Reference](https://docs.atg-simulator.com/vehiclenoisesimulator) for the full API.
 
 ---
 
@@ -54,52 +39,43 @@ The developer reference includes:
 
 ---
 
-<details>
-<summary>Previous: v1.8f2 (May 2026)</summary>
-
-This release brought a major performance upgrade with multi-threading support, alongside deep stability and accuracy improvements. The Non-WebGL (Burst) audio path now produces identical, correct results to the WebGL path. Every core subsystem - blend math, pitch mapping, crossfade panning, hysteresis, and editor tooling - was audited and fixed against actual runtime behaviour.
-
-</details>
-
----
-
 **_Can be used for:_**
 
-:ballot_box_with_check: Engine
+☑️ Engine
 
-:ballot_box_with_check: Intake
+☑️ Intake
 
-:ballot_box_with_check: Exhausts
+☑️ Exhausts
 
-:ballot_box_with_check: Transmission⁰
+☑️ Transmission⁰
 
-:ballot*box_with_check: Differential⁰ *(and alike)\_
+☑️ Differential⁰ \*(and alike)\_
 
-:information_source: Uses real audio clips per Engine RPM and Engine Load to create realistic sound/noise. Two-neighbour constant-power crossfade with cylinder-aware pair hold timing.
+ℹ️ Uses real audio clips per Engine RPM and Engine Load to create realistic sound/noise. Two-neighbour constant-power crossfade with cylinder-aware pair hold timing.
 
 ---
 
 **_Pros:_** _Some of the main reasons for devising this asset:_
 
-:white_check_mark: Lightweight - async Burst-compiled calculations per fixed delta time (non-WebGL), synchronous fallback for WebGL.
+✅ Lightweight - async Burst-compiled calculations per fixed delta time (non-WebGL), synchronous fallback for WebGL.
 
-:white_check_mark: Uses only Unity, optionally supports Unity Audio Mixer. Full WebGL compatibility.
+✅ Uses only Unity, optionally supports Unity Audio Mixer. Full WebGL compatibility.
 
-:white_check_mark: Advanced parameters to fine-tune the audio effect - per-clip min/max pitch, volume offset, pitch offset.
+✅ Advanced parameters to fine-tune the audio effect - per-clip min/max pitch, volume offset, pitch offset.
 
-:white_check_mark: Accurate constant-power crossfade blending between neighbouring RPM clips (cos² + sin² = 1).
+✅ Accurate constant-power crossfade blending between neighbouring RPM clips (cos² + sin² = 1).
 
-:white_check_mark: Refreshed custom inspector with active-pair volume envelope visualization and per-clip pitch range readouts.
+✅ Refreshed custom inspector with active-pair volume envelope visualization and per-clip pitch range readouts.
 
-:white_check_mark: Cylinder-aware pair hold timing for realistic combustion-engine character.
+✅ Cylinder-aware pair hold timing for realistic combustion-engine character.
 
 ---
 
 **_Cons:_**
 
-:x: Needs separate audio files per RPM¹
+❌ Needs separate audio files per RPM¹
 
-:x: Needs careful tweaking and spending time adjusting parameters to properly simulate a realistic vehicle sound with it
+❌ Needs careful tweaking and spending time adjusting parameters to properly simulate a realistic vehicle sound with it
 
 ---
 
@@ -107,15 +83,15 @@ This release brought a major performance upgrade with multi-threading support, a
 
 These are useful to compose loop audio for your vehicle sound simulation.
 
-- There describes how to seamlessly loop audio using a free audio tool manually:
-  - Intermediate Approach: https://gamedevbeginner.com/create-looping-sound-effects-for-games-for-free-with-audacity/
-  - Advanced Approach: https://youtu.be/lMZXjCeAUPM
-- This one is even easier, you don't need to download a tool, and it is online, but a bit more limited: https://www.drumbot.com/projects/looper/
+- There is a description of how to seamlessly loop audio using a free audio tool manually:
+    - Intermediate Approach: https://gamedevbeginner.com/create-looping-sound-effects-for-games-for-free-with-audacity/
+    - Advanced Approach: https://youtu.be/lMZXjCeAUPM
+- This one is even easier; you don't need to download a tool, and it is online, but a bit more limited: https://www.drumbot.com/projects/looper/
 - This uses paid software to correct the pitch and make a cleaner, seamless audio clip: https://youtu.be/1bnasSQbBqk
 
 ---
 
-:warning: **_Alternatives?_**
+⚠️ **_Alternatives?_**
 
 Although this asset was done with the idea of using it in [my passion project ATG Simulator](https://ATG-Simulator.com), the paid ones might be easier to work with. Below is a list of assets and plugins you can use instead - prices valid at the time of writing:
 
@@ -160,7 +136,7 @@ I expect people to use this happily, but also to improve it and share an enhance
 
 ---
 
-:copyright: Dan. Several internet sources and GitHub Repositories like Keijiro Takahashi, CombatWombatZockchster, manueleisl, and others inspired the original script and its idea. The original idea was published as a GitHub repo to recreate a Forza Motorsport 4 type of audio simulation for cars, which unfortunately I lost its URL².
+©️ Dan. Several internet sources and GitHub Repositories like Keijiro Takahashi, CombatWombatZockchster, manueleisl, and others inspired the original script and its idea. The original idea was published as a GitHub repo to recreate a ForzaMotorsport4-type audio simulation for cars, which unfortunately I lost the URL².
 
 Thanks for your attention.
 
@@ -176,8 +152,8 @@ _Check the social media of my passion project called ATG Simulator, please:_
 
 **Footnotes:**
 
-⁰ Transmission and differential sounds from the video are not included in this script. Also, blow-off and other sounds are not part of this asset as they are not intended to be.
+⁰ Transmission and differential sounds from the video are not included in this script. Also, blow-off and other sounds are not part of this asset, as they are not intended to be.
 
-¹ This script is also inspired by this video of the Turn10 Audio Engineer: <https://youtu.be/UNvka9GL-9k>. Same as Forza Horizon 3 or Forza Motorsport 7, it needs audio clips based on different rpm speeds. _E.g. `Ferrari458Engine_Accelerating_at_the_rpm_speed_of_5000.wav`._ It needs at least one accelerating audio clip; very few or too many clips may result in subpar quality.
+¹ This script is also inspired by this video of the Turn10 Audio Engineer: <https://youtu.be/UNvka9GL-9k>. Same as Forza Horizon 3 or Forza Motorsport 7, it needs audio clips based on different RPM speeds. _E.g. `Ferrari458Engine_Accelerating_at_the_rpm_speed_of_5000.wav`._ It needs at least one accelerating audio clip; very few or too many clips may result in subpar quality.
 
 ² In case you know the repository, feel free to let everyone know by adding a comment in the main GitHub repository.

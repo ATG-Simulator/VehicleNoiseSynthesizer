@@ -1396,7 +1396,7 @@ namespace AroundTheGroundSimulator
         public float filterReverbSlewDbS = 2500f;
 
         [Range(0.1f, 5f)]
-        [Tooltip("Slew rate multiplier for 0–1 range parameters (Q, distortion, chorus).")]
+        [Tooltip("Slew rate multiplier for 0-1 range parameters (Q, distortion, chorus).")]
         public float filterParamSlewRate = 1f;
         private readonly List<RuntimeLayer> accLayers = new List<RuntimeLayer>();
         private readonly List<RuntimeLayer> decLayers = new List<RuntimeLayer>();
@@ -1425,6 +1425,13 @@ namespace AroundTheGroundSimulator
         private AudioDistortionFilter dctShiftBurbleDistortion;
         private AudioChorusFilter dctShiftBurbleChorus;
         private float dctShiftBurbleStopTime;
+        private float dctShiftBurbleTargetVolume;
+        private float dctShiftBurbleFadeStartVolume;
+        private float dctShiftBurbleFadeStartTime;
+        private float dctShiftBurbleFadeEndTime;
+        private enum DctShiftFadeState { Idle, FadeIn, Sustain, FadeOut }
+        private DctShiftFadeState dctShiftFadeState = DctShiftFadeState.Idle;
+        private const float DctShiftFadeDuration = 0.020f; // 20 ms
         private float currentLuggingVolume;
         private int activeLuggingIndex = -1;
         private float currentLuggingPitchRandom;
@@ -1561,13 +1568,48 @@ namespace AroundTheGroundSimulator
                 smoothedRpm);
 
             float rpmVolScale = Mathf.Lerp(1f - dctShiftBurbleRpmVolumeInfluence, 1f, normalizedRpm);
+
+            ResetDctShiftFxState();
+
             dctShiftBurbleStopTime = Time.time + dctShiftBurbleMaxDuration;
             dctShiftBurbleSource.clip = dctShiftBurbleSound;
-            dctShiftBurbleSource.volume = dctShiftBurbleVolume * rpmVolScale;
+            dctShiftBurbleSource.volume = 0f;
+            dctShiftBurbleTargetVolume = dctShiftBurbleVolume * rpmVolScale;
             dctShiftBurbleSource.pitch = Mathf.Clamp(
                 dctShiftBurbleBasePitch + UnityEngine.Random.Range(-dctShiftBurblePitchVariation, dctShiftBurblePitchVariation),
                 0.01f, 3f);
             dctShiftBurbleSource.Play();
+            BeginDctShiftFade(DctShiftFadeState.FadeIn, 0f);
+        }
+
+        /// <summary>Zeroes chorus/distortion/LPF so a retrigger starts from a clean state.</summary>
+        private void ResetDctShiftFxState()
+        {
+            if (dctShiftBurbleDistortion != null)
+            {
+                dctShiftBurbleDistortion.distortionLevel = 0f;
+                dctShiftBurbleDistortion.enabled = false;
+            }
+            if (dctShiftBurbleChorus != null)
+            {
+                dctShiftBurbleChorus.enabled = false;
+                dctShiftBurbleChorus.dryMix = 1f;
+                dctShiftBurbleChorus.wetMix1 = 0f;
+                dctShiftBurbleChorus.wetMix2 = 0f;
+                dctShiftBurbleChorus.wetMix3 = 0f;
+                dctShiftBurbleChorus.depth = 0f;
+            }
+            if (dctShiftBurbleLowPass != null)
+                dctShiftBurbleLowPass.cutoffFrequency = 22000f;
+        }
+
+        /// <summary>Begins a fade-in or fade-out envelope for the DCT shift one-shot.</summary>
+        private void BeginDctShiftFade(DctShiftFadeState state, float fromVolume)
+        {
+            dctShiftFadeState = state;
+            dctShiftBurbleFadeStartVolume = fromVolume;
+            dctShiftBurbleFadeStartTime = Time.time;
+            dctShiftBurbleFadeEndTime = Time.time + DctShiftFadeDuration;
         }
 
         private void Awake()
@@ -1787,7 +1829,7 @@ namespace AroundTheGroundSimulator
             host.transform.SetParent(transform, false);
             AudioSource source = host.AddComponent<AudioSource>();
             ApplyTemplateToAudioSource(source);
-            source.loop = true;
+            source.loop = false;
             source.playOnAwake = false;
             source.volume = 0f;
             source.pitch = dctShiftBurbleBasePitch;
@@ -1804,11 +1846,11 @@ namespace AroundTheGroundSimulator
             dctShiftBurbleHighPass.highpassResonanceQ = 1f;
 
             dctShiftBurbleDistortion = host.AddComponent<AudioDistortionFilter>();
-            dctShiftBurbleDistortion.enabled = true;
+            dctShiftBurbleDistortion.enabled = false;
             dctShiftBurbleDistortion.distortionLevel = 0f;
 
             dctShiftBurbleChorus = host.AddComponent<AudioChorusFilter>();
-            dctShiftBurbleChorus.enabled = true;
+            dctShiftBurbleChorus.enabled = false;
             dctShiftBurbleChorus.dryMix = 1f;
             dctShiftBurbleChorus.wetMix1 = 0f;
             dctShiftBurbleChorus.wetMix2 = 0f;
@@ -1918,6 +1960,7 @@ namespace AroundTheGroundSimulator
                 dctShiftBurbleSource.Stop();
                 dctShiftBurbleSource.volume = 0f;
             }
+            dctShiftFadeState = DctShiftFadeState.Idle;
             calculationRoutine = StartCoroutine(CalculateAsync());
         }
 
@@ -2324,13 +2367,18 @@ namespace AroundTheGroundSimulator
         /// <summary>Stops the DCT shift burble source once its max duration has elapsed.</summary>
         private void UpdateDctShiftBurble()
         {
-            if (dctShiftBurbleSource == null || !dctShiftBurbleSource.isPlaying) return;
+            if (dctShiftBurbleSource == null) return;
 
-            // Stop after max duration expires
+            // Advance the fade envelope every tick while playing.
+            UpdateDctShiftFade();
+
+            if (!dctShiftBurbleSource.isPlaying) return;
+
+            // Stop after max duration expires  --  fade out first, then Stop() at ~0 volume.
             if (Time.time >= dctShiftBurbleStopTime)
             {
-                dctShiftBurbleSource.Stop();
-                dctShiftBurbleSource.volume = 0f;
+                if (dctShiftFadeState != DctShiftFadeState.FadeOut)
+                    BeginDctShiftFade(DctShiftFadeState.FadeOut, dctShiftBurbleSource.volume);
                 return;
             }
 
@@ -2340,11 +2388,38 @@ namespace AroundTheGroundSimulator
             if (burbleElapsed > 0.03f)
             {
                 float deltaLoad = smoothedLoad - previousSmoothedLoad;
-                if (deltaLoad > 0f)
-                {
-                    dctShiftBurbleSource.Stop();
-                    dctShiftBurbleSource.volume = 0f;
-                }
+                if (deltaLoad > 0f && dctShiftFadeState != DctShiftFadeState.FadeOut)
+                    BeginDctShiftFade(DctShiftFadeState.FadeOut, dctShiftBurbleSource.volume);
+            }
+        }
+
+        /// <summary>Drives the fade-in / sustain / fade-out envelope and stops the source once faded out.</summary>
+        private void UpdateDctShiftFade()
+        {
+            if (dctShiftFadeState == DctShiftFadeState.Idle) return;
+            if (dctShiftBurbleSource == null) return;
+
+            float now = Time.time;
+            float t = Mathf.Clamp01((now - dctShiftBurbleFadeStartTime) / DctShiftFadeDuration);
+
+            switch (dctShiftFadeState)
+            {
+                case DctShiftFadeState.FadeIn:
+                    dctShiftBurbleSource.volume = Mathf.Lerp(dctShiftBurbleFadeStartVolume, dctShiftBurbleTargetVolume, t);
+                    if (t >= 1f) dctShiftFadeState = DctShiftFadeState.Sustain;
+                    break;
+                case DctShiftFadeState.Sustain:
+                    dctShiftBurbleSource.volume = dctShiftBurbleTargetVolume;
+                    break;
+                case DctShiftFadeState.FadeOut:
+                    dctShiftBurbleSource.volume = Mathf.Lerp(dctShiftBurbleFadeStartVolume, 0f, t);
+                    if (t >= 1f)
+                    {
+                        dctShiftBurbleSource.volume = 0f;
+                        dctShiftBurbleSource.Stop();
+                        dctShiftFadeState = DctShiftFadeState.Idle;
+                    }
+                    break;
             }
         }
 
@@ -2353,22 +2428,18 @@ namespace AroundTheGroundSimulator
             if (dctShiftBurbleSource == null || !dctShiftBurbleSource.isPlaying) return;
             if (dctShiftBurbleLowPass == null) return;
 
+            // Take the min (most restrictive) of the intensity LPF and the distance/muffling LPF
+            // so a distance path can never reopen the filter while the overlay is playing.
             float lpCurveValue = Mathf.Clamp(SampleBakedCurve(bakedLowPassCurve, smoothedLoad), 500f, 22000f);
             float lpMix = Mathf.Clamp01(Mathf.Max(lowPassIntensity, lowPassStrength + mufflingIntensity));
-            float lowPassTarget = Mathf.Lerp(22000f, lpCurveValue, lpMix);
+            float distanceLpf = Mathf.Lerp(22000f, lpCurveValue, lpMix);
+            float intensityLpf = Mathf.Lerp(8000f, 3000f, normalizedRpm);
+            float lowPassTarget = Mathf.Min(distanceLpf, intensityLpf);
             float hpAmount = Mathf.Clamp01(normalizedRpm * normalizedRpm * highPassStrength);
             float highPassTarget = Mathf.Lerp(10f, 1800f, hpAmount);
             float resShape = Mathf.Sin(normalizedRpm * Mathf.PI);
             float lowPassQ = Mathf.Lerp(1f, 8f, Mathf.Clamp01(resShape * resonanceStrength));
             float highPassQ = Mathf.Lerp(1f, 2.2f, hpAmount);
-            float distDrive = SampleBakedCurve(bakedDistortionCurve, normalizedRpm) * (smoothedLoad + 0.5f);
-            float distortionTarget = Mathf.Clamp01(distDrive * distortionIntensity * (1f + distortionStrength));
-            float chorusAmount = Mathf.Clamp01(Mathf.InverseLerp(0.3f, 1f, normalizedRpm) * chorusStrength);
-            float chorusWet = Mathf.Lerp(0f, 0.55f, chorusAmount);
-            float chorusDepth = Mathf.Lerp(0f, 0.7f, chorusAmount);
-            float chorusRate = Mathf.Lerp(0.8f, 2.1f, chorusAmount);
-            float totalWet = chorusWet * 0.6f + chorusWet * 0.3f + chorusWet * 0.1f;
-            float chorusDry = Mathf.Max(0f, 1f - totalWet);
 
             float slew2000 = filterLPFSlewHz * deltaTime;
             float slew180 = filterHPFSlewHz * deltaTime;
@@ -2378,13 +2449,22 @@ namespace AroundTheGroundSimulator
             //dctShiftBurbleLowPass.lowpassResonanceQ = Mathf.MoveTowards(dctShiftBurbleLowPass.lowpassResonanceQ, lowPassQ, slewBase);
             //dctShiftBurbleHighPass.cutoffFrequency = Mathf.MoveTowards(dctShiftBurbleHighPass.cutoffFrequency, highPassTarget, slew180);
             //dctShiftBurbleHighPass.highpassResonanceQ = Mathf.MoveTowards(dctShiftBurbleHighPass.highpassResonanceQ, highPassQ, slewBase);
-            dctShiftBurbleDistortion.distortionLevel = Mathf.MoveTowards(dctShiftBurbleDistortion.distortionLevel, distortionTarget, slewBase);
-            dctShiftBurbleChorus.dryMix = Mathf.MoveTowards(dctShiftBurbleChorus.dryMix, chorusDry, slewBase);
-            dctShiftBurbleChorus.wetMix1 = Mathf.MoveTowards(dctShiftBurbleChorus.wetMix1, chorusWet * 0.6f, slewBase);
-            dctShiftBurbleChorus.wetMix2 = Mathf.MoveTowards(dctShiftBurbleChorus.wetMix2, chorusWet * 0.3f, slewBase);
-            dctShiftBurbleChorus.wetMix3 = Mathf.MoveTowards(dctShiftBurbleChorus.wetMix3, chorusWet * 0.1f, slewBase);
-            dctShiftBurbleChorus.depth = Mathf.MoveTowards(dctShiftBurbleChorus.depth, chorusDepth, slewBase);
-            dctShiftBurbleChorus.rate = Mathf.MoveTowards(dctShiftBurbleChorus.rate, chorusRate, slewBase);
+
+            if (dctShiftBurbleDistortion != null)
+            {
+                dctShiftBurbleDistortion.distortionLevel = 0f;
+                dctShiftBurbleDistortion.enabled = false;
+            }
+
+            if (dctShiftBurbleChorus != null)
+            {
+                dctShiftBurbleChorus.enabled = false;
+                dctShiftBurbleChorus.dryMix = 1f;
+                dctShiftBurbleChorus.wetMix1 = 0f;
+                dctShiftBurbleChorus.wetMix2 = 0f;
+                dctShiftBurbleChorus.wetMix3 = 0f;
+                dctShiftBurbleChorus.depth = 0f;
+            }
         }
 
         private void UpdateLugging(float deltaTime, float clampedRpm)
@@ -2533,6 +2613,7 @@ namespace AroundTheGroundSimulator
                 dctShiftBurbleSource.Stop();
                 dctShiftBurbleSource.volume = 0f;
             }
+            dctShiftFadeState = DctShiftFadeState.Idle;
             dctShiftBurbleStopTime = 0f;
             FadeOutAllLugging(deltaTime);
         }

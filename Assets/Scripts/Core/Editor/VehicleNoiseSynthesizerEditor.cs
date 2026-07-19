@@ -132,12 +132,12 @@ namespace AroundTheGroundSimulator
             {
                 EditorGUILayout.HelpBox("These curves shape how volume and pitch respond as RPM changes. The defaults work well out of the box - only edit them if you want extra character. Expand below to see all curve fields.", MessageType.Info);
                 EditorGUILayout.PropertyField(volumeCurveProp, new GUIContent("Volume Curve", "Controls how loud the engine is at each RPM. The default rises gently with RPM. Lower the left end to reduce idle volume."));
-                EditorGUILayout.PropertyField(idleVolumeProp, new GUIContent("Idle Volume", "Volume level at zero RPM / idle. Keep this low (0.1–0.3) so the engine doesn't sound equally loud when stationary."));
+                EditorGUILayout.PropertyField(idleVolumeProp, new GUIContent("Idle Volume", "Volume level at zero RPM / idle. Keep this low (0.1-0.3) so the engine doesn't sound equally loud when stationary."));
                 showCurvesAdvanced = EditorGUILayout.ToggleLeft("▸ Show curve fields", showCurvesAdvanced, EditorStyles.miniLabel);
                 if (showCurvesAdvanced)
                 {
                     EditorGUILayout.PropertyField(pitchCurveProp, new GUIContent("Pitch Curve", "Shapes how the overall engine pitch scales with RPM. A flat line at 1.0 is neutral - raise the right end to make the engine sound higher-pitched at redline."));
-                    EditorGUILayout.PropertyField(loadEffectivenessOnPitchProp, new GUIContent("Load → Pitch", "How much engine load (throttle pressure) affects pitch. 0 = load has no effect; 1 = full effect. Most vehicles sound natural at 0.1–0.3."));
+                    EditorGUILayout.PropertyField(loadEffectivenessOnPitchProp, new GUIContent("Load → Pitch", "How much engine load (throttle pressure) affects pitch. 0 = load has no effect; 1 = full effect. Most vehicles sound natural at 0.1-0.3."));
                 }
             });
 
@@ -145,13 +145,13 @@ namespace AroundTheGroundSimulator
             {
                 EditorGUILayout.HelpBox("Controls how smoothly the engine transitions between clips as RPM and load change. Start with the defaults - only adjust if transitions feel too snappy or too sluggish.", MessageType.Info);
                 EditorGUILayout.PropertyField(keepBankClipsPlayingProp, new GUIContent("Keep Bank Clips Playing", "When enabled, all clips in a bank keep playing at low volume in the background. Smoother transitions but uses more CPU. Recommended ON for quality setups."));
-                EditorGUILayout.PropertyField(clipVolumeResponseTimeProp, new GUIContent("Volume Fade Time", "How many seconds it takes for a clip's volume to reach its target. Shorter = snappier blends. Try 0.08–0.2."));
-                EditorGUILayout.PropertyField(clipPitchResponseTimeProp, new GUIContent("Pitch Slide Time", "How many seconds pitch takes to reach its target. Shorter values feel more responsive. Try 0.05–0.15."));
-                EditorGUILayout.PropertyField(rpmResponseTimeProp, new GUIContent("RPM Smoothing", "Smooths the RPM signal before it drives audio. Higher values reduce jitter from physics but add lag. Try 0.02–0.08."));
-                EditorGUILayout.PropertyField(loadResponseTimeProp, new GUIContent("Load Smoothing", "Smooths the throttle/load signal. Prevents crackling on rapid throttle changes. Try 0.05–0.15."));
-                EditorGUILayout.PropertyField(pairHysteresisRpmProp, new GUIContent("Pair Hysteresis RPM", "RPM dead-band around a crossover point. Prevents the active clip pair from flickering when RPM hovers near a boundary. Try 50–200 RPM."));
+                EditorGUILayout.PropertyField(clipVolumeResponseTimeProp, new GUIContent("Volume Fade Time", "How many seconds it takes for a clip's volume to reach its target. Shorter = snappier blends. Try 0.08-0.2."));
+                EditorGUILayout.PropertyField(clipPitchResponseTimeProp, new GUIContent("Pitch Slide Time", "How many seconds pitch takes to reach its target. Shorter values feel more responsive. Try 0.05-0.15."));
+                EditorGUILayout.PropertyField(rpmResponseTimeProp, new GUIContent("RPM Smoothing", "Smooths the RPM signal before it drives audio. Higher values reduce jitter from physics but add lag. Try 0.02-0.08."));
+                EditorGUILayout.PropertyField(loadResponseTimeProp, new GUIContent("Load Smoothing", "Smooths the throttle/load signal. Prevents crackling on rapid throttle changes. Try 0.05-0.15."));
+                EditorGUILayout.PropertyField(pairHysteresisRpmProp, new GUIContent("Pair Hysteresis RPM", "RPM dead-band around a crossover point. Prevents the active clip pair from flickering when RPM hovers near a boundary. Try 50-200 RPM."));
                 EditorGUILayout.PropertyField(pairHoldCyclesProp, new GUIContent("Pair Hold Cycles", "Number of combustion cycles to hold a clip pair before allowing a switch. Higher values stabilise rapidly revving engines."));
-                EditorGUILayout.PropertyField(loadCrossoverPointProp, new GUIContent("Acc/Dec Crossover", "Normalised load (0–1) at which the engine switches from the deceleration bank to the acceleration bank. 0.5 = mid-throttle. Adjust to taste."));
+                EditorGUILayout.PropertyField(loadCrossoverPointProp, new GUIContent("Acc/Dec Crossover", "Normalised load (0-1) at which the engine switches from the deceleration bank to the acceleration bank. 0.5 = mid-throttle. Adjust to taste."));
                 EditorGUILayout.PropertyField(loadBlendWidthProp, new GUIContent("Crossover Blend Width", "Width of the overlap zone around the crossover point where both banks are audible simultaneously. Wider = smoother transition."));
                 EditorGUILayout.PropertyField(loadVolumeAccChangerFactorProp, new GUIContent("Acc Volume Sensitivity", "How strongly load amplifies the acceleration bank volume. 1 = full scaling; 0 = flat."));
                 EditorGUILayout.PropertyField(loadVolumeDccChangerFactorProp, new GUIContent("Dec Volume Sensitivity", "How strongly load (inverted) amplifies the deceleration bank volume."));
@@ -191,8 +191,8 @@ namespace AroundTheGroundSimulator
                 EditorGUILayout.PropertyField(acPitchTrimProp, new GUIContent("Acc Pitch Trim", "Global pitch offset added to all acceleration clips. Positive = higher pitch. Use tiny values (±0.05) to nudge the overall engine tone under throttle."));
                 EditorGUILayout.PropertyField(dcPitchTrimProp, new GUIContent("Dec Pitch Trim", "Global pitch offset added to all deceleration clips. Use tiny values (±0.05) to adjust the engine tone on lift-off."));
                 EditorGUILayout.PropertyField(maximumTheoricalRPMProp, new GUIContent("Max Theoretical RPM", "The redline / rev limiter RPM of the engine. Used to normalise visualisations and pitch calculations. Set this to match your vehicle's actual rev limit."));
-                EditorGUILayout.PropertyField(lowPassStrengthProp, new GUIContent("Low-Pass Strength", "How strongly a low-pass filter is applied at idle / low RPM, making the engine sound muffled. 0 = off. Typical range: 0.1–0.5."));
-                EditorGUILayout.PropertyField(highPassStrengthProp, new GUIContent("High-Pass Strength", "How strongly a high-pass filter is applied. Removes bass rumble at high RPM. 0 = off. Typical range: 0–0.3."));
+                EditorGUILayout.PropertyField(lowPassStrengthProp, new GUIContent("Low-Pass Strength", "How strongly a low-pass filter is applied at idle / low RPM, making the engine sound muffled. 0 = off. Typical range: 0.1-0.5."));
+                EditorGUILayout.PropertyField(highPassStrengthProp, new GUIContent("High-Pass Strength", "How strongly a high-pass filter is applied. Removes bass rumble at high RPM. 0 = off. Typical range: 0-0.3."));
                 EditorGUILayout.PropertyField(resonanceStrengthProp, new GUIContent("Filter Resonance", "Adds a peak/resonance to the filter cutoff frequency, creating a nasal or growling quality. Keep below 0.3 to avoid harsh artefacts."));
                 EditorGUILayout.PropertyField(distortionStrengthProp, new GUIContent("Distortion Strength", "Adds harmonic saturation/distortion at high load or RPM, simulating an overdriven exhaust. 0 = clean; 1 = heavy distortion."));
                 EditorGUILayout.PropertyField(chorusStrengthProp, new GUIContent("Chorus Strength", "Adds a subtle pitch-wobble / chorus effect, useful for making a single recorded clip sound richer and less synthetic. Keep below 0.2."));
@@ -216,17 +216,17 @@ namespace AroundTheGroundSimulator
                 EditorGUILayout.PropertyField(enableExhaustBurbleProp, new GUIContent("Enable Exhaust Burble", "Plays random one-shot exhaust crackle clips when you lift off the throttle at high RPM - the classic sports-car burble effect."));
                 if (enableExhaustBurbleProp.boolValue)
                 {
-                    EditorGUILayout.HelpBox("Burble triggers when you lift off the throttle (low load) above the minimum RPM. Add 2–5 short exhaust pop clips for best results.", MessageType.Info);
-                    EditorGUILayout.PropertyField(burbleSoundsProp, new GUIContent("Burble Clips", "One-shot audio clips for the exhaust crackle. Add short (0.05–0.3 s) exhaust pop sounds here."), true);
-                    EditorGUILayout.PropertyField(burbleVolumeProp, new GUIContent("Burble Volume", "Master volume for the burble effect. 0.5–1.0 works well for most vehicles."));
-                    EditorGUILayout.PropertyField(burbleMinRPMProp, new GUIContent("Min RPM to Trigger", "Burble will not play below this RPM. Set to roughly 60–70 % of your maximum RPM."));
-                    EditorGUILayout.PropertyField(burbleLoadLowThresholdProp, new GUIContent("Load Low Threshold", "Burble only triggers when load (throttle) is BELOW this value. Keep it low (0.1–0.2) so it only fires on full lift-off."));
+                    EditorGUILayout.HelpBox("Burble triggers when you lift off the throttle (low load) above the minimum RPM. Add 2-5 short exhaust pop clips for best results.", MessageType.Info);
+                    EditorGUILayout.PropertyField(burbleSoundsProp, new GUIContent("Burble Clips", "One-shot audio clips for the exhaust crackle. Add short (0.05-0.3 s) exhaust pop sounds here."), true);
+                    EditorGUILayout.PropertyField(burbleVolumeProp, new GUIContent("Burble Volume", "Master volume for the burble effect. 0.5-1.0 works well for most vehicles."));
+                    EditorGUILayout.PropertyField(burbleMinRPMProp, new GUIContent("Min RPM to Trigger", "Burble will not play below this RPM. Set to roughly 60-70 % of your maximum RPM."));
+                    EditorGUILayout.PropertyField(burbleLoadLowThresholdProp, new GUIContent("Load Low Threshold", "Burble only triggers when load (throttle) is BELOW this value. Keep it low (0.1-0.2) so it only fires on full lift-off."));
                     EditorGUILayout.PropertyField(burbleLoadHighThresholdProp, new GUIContent("Load High Threshold", "Burble only triggers when load is ABOVE this value at the moment of lift-off. Prevents burble at very low throttle positions."));
                     EditorGUILayout.PropertyField(burbleRPMDropThresholdProp, new GUIContent("RPM Drop Threshold", "How fast RPM must be falling (RPM/s) to allow a burble. Prevents pops during steady deceleration."));
-                    EditorGUILayout.PropertyField(burbleProbabilityProp, new GUIContent("Fire Probability", "Chance (0–1) that a burble fires each cycle. 0.6–0.8 gives a natural, irregular rhythm."));
+                    EditorGUILayout.PropertyField(burbleProbabilityProp, new GUIContent("Fire Probability", "Chance (0-1) that a burble fires each cycle. 0.6-0.8 gives a natural, irregular rhythm."));
                     EditorGUILayout.PropertyField(minBurbleDelayProp, new GUIContent("Min Delay (s)", "Minimum seconds between consecutive burble pops. Prevents machine-gun repetition."));
                     EditorGUILayout.PropertyField(maxBurbleDelayProp, new GUIContent("Max Delay (s)", "Maximum seconds between consecutive burble pops."));
-                    EditorGUILayout.PropertyField(burbleRandomPitchVariationProp, new GUIContent("Pitch Variation", "Random ± pitch offset on each pop. A small value (0.05–0.15) keeps the sound organic."));
+                    EditorGUILayout.PropertyField(burbleRandomPitchVariationProp, new GUIContent("Pitch Variation", "Random ± pitch offset on each pop. A small value (0.05-0.15) keeps the sound organic."));
                     EditorGUILayout.PropertyField(burbleFadeRateProp, new GUIContent("Fade Rate", "How quickly each burble clip fades out after playing. Higher = shorter tail."));
                 }
             });
@@ -237,8 +237,8 @@ namespace AroundTheGroundSimulator
                 EditorGUILayout.PropertyField(enableDctShiftBurbleProp, new GUIContent("Enable DCT Shift Burble", "When enabled, a brief exhaust sound plays each time a gear-shift event is detected."));
                 if (enableDctShiftBurbleProp.boolValue)
                 {
-                    EditorGUILayout.PropertyField(dctShiftBurbleSoundProp, new GUIContent("Shift Sound Clip", "The looped audio clip played during a DCT shift event. Use a short (0.1–0.3 s) exhaust blip sound."));
-                    EditorGUILayout.PropertyField(dctShiftBurbleVolumeProp, new GUIContent("Shift Volume", "Volume of the shift burble. 0.5–0.9 is typical."));
+                    EditorGUILayout.PropertyField(dctShiftBurbleSoundProp, new GUIContent("Shift Sound Clip", "The looped audio clip played during a DCT shift event. Use a short (0.1-0.3 s) exhaust blip sound."));
+                    EditorGUILayout.PropertyField(dctShiftBurbleVolumeProp, new GUIContent("Shift Volume", "Volume of the shift burble. 0.5-0.9 is typical."));
                     EditorGUILayout.BeginHorizontal();
                     EditorGUILayout.PrefixLabel(new GUIContent("RPM Vol Influence", "0 = shift volume is constant regardless of RPM.\n1 = volume scales linearly with RPM - quieter at low RPM, louder near redline.\nDefault: 1 (recommended for realism)."));
                     int curInfl = Mathf.RoundToInt(dctShiftBurbleRpmVolumeInfluenceProp.floatValue);
@@ -246,7 +246,7 @@ namespace AroundTheGroundSimulator
                     if (newInfl != curInfl) dctShiftBurbleRpmVolumeInfluenceProp.floatValue = newInfl;
                     EditorGUILayout.EndHorizontal();
                     EditorGUILayout.PropertyField(dctShiftBurbleMinRPMProp, new GUIContent("Min RPM to Trigger", "Shift burble will not play below this RPM. Set to a mid-high RPM so shifts at low speed don't trigger it."));
-                    EditorGUILayout.PropertyField(dctShiftBurbleMaxDurationProp, new GUIContent("Max Duration (s)", "Maximum time the shift sound may play. Keep short - 0.08–0.2 s is realistic."));
+                    EditorGUILayout.PropertyField(dctShiftBurbleMaxDurationProp, new GUIContent("Max Duration (s)", "Maximum time the shift sound may play. Keep short - 0.08-0.2 s is realistic."));
                     EditorGUILayout.PropertyField(dctShiftBurbleBasePitchProp, new GUIContent("Base Pitch", "Base playback pitch of the shift clip. 1.0 = original pitch."));
                     EditorGUILayout.PropertyField(dctShiftBurblePitchVariationProp, new GUIContent("Pitch Variation", "Random ± pitch offset each shift. Keeps repeated shifts from sounding identical."));
                 }
@@ -259,10 +259,10 @@ namespace AroundTheGroundSimulator
                 {
                     EditorGUILayout.HelpBox("Lugging plays a looping sound when RPM is low AND load is high simultaneously. Add a low-frequency rumble or knock sound for best effect.", MessageType.Info);
                     EditorGUILayout.PropertyField(luggingSoundsProp, new GUIContent("Lugging Clips", "Looping audio clips for the engine-lug sound. Use heavy, low-frequency knock or rumble sounds."), true);
-                    EditorGUILayout.PropertyField(luggingVolumeProp, new GUIContent("Lugging Volume", "Volume of the lugging effect. 0.5–1.0 is typical."));
-                    EditorGUILayout.PropertyField(luggingMinRPMThresholdProp, new GUIContent("Min RPM (lug zone)", "RPM must be BELOW this value for lugging to be active. Set to roughly 20–30 % of your max RPM."));
+                    EditorGUILayout.PropertyField(luggingVolumeProp, new GUIContent("Lugging Volume", "Volume of the lugging effect. 0.5-1.0 is typical."));
+                    EditorGUILayout.PropertyField(luggingMinRPMThresholdProp, new GUIContent("Min RPM (lug zone)", "RPM must be BELOW this value for lugging to be active. Set to roughly 20-30 % of your max RPM."));
                     EditorGUILayout.PropertyField(luggingMaxRPMThresholdProp, new GUIContent("Max RPM (lug zone)", "Upper edge of the RPM lug zone. Above this RPM, lugging fades out."));
-                    EditorGUILayout.PropertyField(luggingMinLoadThresholdProp, new GUIContent("Min Load to Lug", "Load (throttle) must be ABOVE this value for lugging to trigger. Set to 0.5–0.8 so only high-throttle low-RPM situations trigger it."));
+                    EditorGUILayout.PropertyField(luggingMinLoadThresholdProp, new GUIContent("Min Load to Lug", "Load (throttle) must be ABOVE this value for lugging to trigger. Set to 0.5-0.8 so only high-throttle low-RPM situations trigger it."));
                     EditorGUILayout.PropertyField(luggingFadeInSpeedProp, new GUIContent("Fade In Speed", "How quickly (per second) the lugging volume fades in when conditions are met. Higher = snappier onset."));
                     EditorGUILayout.PropertyField(luggingFadeOutSpeedProp, new GUIContent("Fade Out Speed", "How quickly the lugging volume fades out when RPM or load leave the lug zone."));
                     EditorGUILayout.PropertyField(luggingBasePitchProp, new GUIContent("Base Pitch", "Playback pitch of the lugging clip. 1.0 = original pitch. Lower this slightly for a deeper lug."));
@@ -280,8 +280,8 @@ namespace AroundTheGroundSimulator
                         "Throttle Flutter fires once when you snap the throttle shut at high RPM.\n" +
                         "Both sounds become louder and higher-pitched as RPM increases.",
                         MessageType.Info);
-                    EditorGUILayout.PropertyField(intakeRoarSoundsProp, new GUIContent("Intake Roar Clips", "Short audio clips for the throttle tip-in sound. Use 0.05–0.2 s whoosh or induction roar recordings."), true);
-                    EditorGUILayout.PropertyField(intakeRoarVolumeProp, new GUIContent("Intake Roar Volume", "Volume of the intake roar on tip-in. 0.3–0.7 is typical."));
+                    EditorGUILayout.PropertyField(intakeRoarSoundsProp, new GUIContent("Intake Roar Clips", "Short audio clips for the throttle tip-in sound. Use 0.05-0.2 s whoosh or induction roar recordings."), true);
+                    EditorGUILayout.PropertyField(intakeRoarVolumeProp, new GUIContent("Intake Roar Volume", "Volume of the intake roar on tip-in. 0.3-0.7 is typical."));
                     EditorGUILayout.Space(4f);
                     EditorGUILayout.PropertyField(throttleFlutterSoundsProp, new GUIContent("Flutter Clips", "Short audio clips for throttle flutter on tip-out. Use fluttering or blow-off valve sounds."), true);
                     EditorGUILayout.PropertyField(throttleFlutterVolumeProp, new GUIContent("Flutter Volume", "Volume of the throttle flutter sound on tip-out."));
@@ -302,8 +302,8 @@ namespace AroundTheGroundSimulator
                         "Plays a random one-shot exhaust clip on repeat while RPM stays in the redline window.\n" +
                         "Set Min/Max RPM to bracket your rev limiter. Delay and pitch are randomised for realism.",
                         MessageType.Info);
-                    EditorGUILayout.PropertyField(redlineSoundsProp, new GUIContent("Redline Clips", "Short exhaust pop/crackle clips. Add 2–4 variations for natural-sounding limiter bounce."), true);
-                    EditorGUILayout.PropertyField(redlineVolumeProp, new GUIContent("Redline Volume", "Volume of the redline effect. 0.5–1.0 works well."));
+                    EditorGUILayout.PropertyField(redlineSoundsProp, new GUIContent("Redline Clips", "Short exhaust pop/crackle clips. Add 2-4 variations for natural-sounding limiter bounce."), true);
+                    EditorGUILayout.PropertyField(redlineVolumeProp, new GUIContent("Redline Volume", "Volume of the redline effect. 0.5-1.0 works well."));
                     EditorGUILayout.Space(4f);
                     EditorGUILayout.PropertyField(redlineMinRPMProp, new GUIContent("Min RPM", "RPM at which the redline effect begins. Set just below your rev limiter."));
                     EditorGUILayout.PropertyField(redlineMaxRPMProp, new GUIContent("Max RPM", "RPM ceiling for the redline effect. Set to your absolute maximum RPM."));
@@ -479,7 +479,7 @@ namespace AroundTheGroundSimulator
 
             string pairLabel = activeSrcLo == activeSrcHi
                 ? $"Active: clip {activeSrcLo}  ({Mathf.RoundToInt(bankProp.GetArrayElementAtIndex(activeSrcLo).FindPropertyRelative("rpmValue").intValue)} RPM)"
-                : $"Active: clips {activeSrcLo}–{activeSrcHi}  ({Mathf.RoundToInt(bankProp.GetArrayElementAtIndex(activeSrcLo).FindPropertyRelative("rpmValue").intValue)}–{Mathf.RoundToInt(bankProp.GetArrayElementAtIndex(activeSrcHi).FindPropertyRelative("rpmValue").intValue)} RPM)";
+                : $"Active: clips {activeSrcLo}-{activeSrcHi}  ({Mathf.RoundToInt(bankProp.GetArrayElementAtIndex(activeSrcLo).FindPropertyRelative("rpmValue").intValue)}-{Mathf.RoundToInt(bankProp.GetArrayElementAtIndex(activeSrcHi).FindPropertyRelative("rpmValue").intValue)} RPM)";
             GUI.Label(new Rect(totalRect.x + 2f, totalRect.yMax - 16f, totalRect.width - 4f, 14f), pairLabel, mutedLabelStyle);
         }
 
