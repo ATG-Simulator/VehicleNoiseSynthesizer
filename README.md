@@ -9,8 +9,6 @@ https://github.com/user-attachments/assets/0140613e-f241-4938-af58-fb6ada2ee422
 
 VNS is an open-source, free, multi-threaded async audio add-on primarily designed for Unity to simulate vehicle sounds based on engine RPM, similar to a granulator, and it has no dependencies such as FMOD. Originally designed for [my hobby project](https://atg-simulator.com/). It is best for transmission, exhaust, engine, and intake sounds and is intended for each of those audio sources separately.
 
-![{ADC15B13-CDF1-412F-A49A-F42651C76447}](https://github.com/user-attachments/assets/f12cac05-6ac5-4c41-8234-d67f64bf8363)
-
 ```
 Vehicle Sound Synthesizer • Enhanced Loop-based Vehicle Noise Simulator • v1.9f
 ```
