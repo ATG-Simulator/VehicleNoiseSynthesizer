@@ -1,7 +1,6 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
 using System.Text;
 using UnityEngine;
 using UnityEngine.Audio;
@@ -14,7 +13,11 @@ using Unity.Mathematics;
 
 namespace AroundTheGroundSimulator
 {
-    /// <summary>Vehicle Noise Synthesizer v1.9 - real-time engine audio synthesis with Burst-accelerated neighbour-pair blending.</summary>
+    /// <summary>
+    /// Real-time multi-clip engine audio granulator (VNS v1.9).
+    /// Desktop builds batch all instances in a Burst job each fixed step;
+    /// WebGL builds run the same algorithm on the main thread.
+    /// </summary>
     [AddComponentMenu("ATG Audio/Vehicle Noise Synthesizer")]
     [HelpURL("https://github.com/ImDanOush/VehicleNoiseSynthesizer")]
     public class VehicleNoiseSynthesizer : MonoBehaviour
@@ -46,11 +49,11 @@ namespace AroundTheGroundSimulator
             public float pitchOffset = 0f;
 
             [Tooltip("Low-end pitch multiplier applied to this clip at minimum RPM (1 = neutral).")]
-            [Range(0.01f, 10f)]
+            [Range(0.01f, 3f)]
             public float loPitch = 1f;
 
             [Tooltip("High-end pitch multiplier applied to this clip at maximum RPM (1 = neutral).")]
-            [Range(0.01f, 10f)]
+            [Range(0.01f, 3f)]
             public float hiPitch = 1f;
         }
 
@@ -65,7 +68,6 @@ namespace AroundTheGroundSimulator
             public AudioReverbFilter reverb;
             public AudioClip clip;
             public float referenceRpm;
-            public float rpmPitchTracking;
             public float minPitch;
             public float maxPitch;
             public float volumeOffset;
@@ -114,7 +116,15 @@ namespace AroundTheGroundSimulator
             bakedVolumeCurve = BakeCurve(volumeCurve);
             bakedDistortionCurve = BakeCurve(distortionCurve);
             bakedLowPassCurve = BakeCurve(lowPassCurve);
+#if !UNITY_WEBGL
+            _batchCurvesDirty = true;
+#endif
         }
+
+#if !UNITY_WEBGL
+        /// <summary>True when baked curves need re-upload into the batch NativeArrays.</summary>
+        private bool _batchCurvesDirty = true;
+#endif
 
 #if !UNITY_WEBGL
         private struct VehicleCalcInput
@@ -168,8 +178,10 @@ namespace AroundTheGroundSimulator
 
             public float pairHysteresisRpm;
             public float pairHoldCycles;
-            public float currentTime;            // Time.time snapshot
-            public float fixedDeltaTime;         // Time.fixedDeltaTime - used to quantize hold to whole physics ticks
+            /// <summary>How far RPM may leave the active pair window before hold escape / pitch clamp (e.g. 1.2 = ±20%).</summary>
+            public float maxPitchRatioBeyondPair;
+            public float currentTime;
+            public float fixedDeltaTime;
         }
 
         private struct VehicleCalcOutput
@@ -217,7 +229,6 @@ namespace AroundTheGroundSimulator
         private struct LayerData
         {
             public float referenceRpm;
-            public float rpmPitchTracking;
             public float minPitch;
             public float maxPitch;
             public float volumeOffset;
@@ -245,9 +256,7 @@ namespace AroundTheGroundSimulator
                 VehicleCalcOutput o = default;
                 int curveBase = vehicleIndex * CurveSamples;
 
-                // Global pitch: user curve, load contribution, and
-                // shift/gear-change oscillation. Per-clip RPM-ratio is applied
-                // later in EvalPitchInJob.
+                // Global pitch contour; per-clip RPM ratio is applied in EvalPitchInJob.
                 float curvePitch = SampleJob(BakedPitchCurves, curveBase, inp.normalizedRpm);
                 float loadPitchContrib = inp.smoothedLoad * inp.loadEffectivenessOnPitch;
                 o.finalPitch = MathMax(0.01f,
@@ -312,7 +321,7 @@ namespace AroundTheGroundSimulator
                 float hpAmount = Clamp01(inp.normalizedRpm * inp.normalizedRpm * inp.highPassStrength);
                 o.highPassTarget = Lerp(10f, 1800f, hpAmount);
 
-                float resShape = MathSin2(inp.normalizedRpm * 3.14159265f);
+                float resShape = math.sin(inp.normalizedRpm * math.PI);
                 o.lowPassQTarget = Lerp(1f, 8f, Clamp01(resShape * inp.resonanceStrength));
                 o.highPassQTarget = Lerp(1f, 2.2f, hpAmount);
 
@@ -338,10 +347,10 @@ namespace AroundTheGroundSimulator
                 Outputs[vehicleIndex] = o;
             }
 
-            private static float SampleJob(NativeArray<float> table, int baseIndex, float t)
+            private float SampleJob(NativeArray<float> table, int baseIndex, float t)
             {
                 t = t < 0f ? 0f : t > 1f ? 1f : t;
-                const int n = 256;
+                int n = CurveSamples > 1 ? CurveSamples : 256;
                 float scaled = t * (n - 1);
                 int lo = (int)scaled;
                 int hi = lo + 1;
@@ -354,6 +363,7 @@ namespace AroundTheGroundSimulator
             private static float ClampF(float v, float lo, float hi) =>
                 v < lo ? lo : v > hi ? hi : v;
             private static float MathMax(float a, float b) => a > b ? a : b;
+            private static int MathAbs(int v) => v < 0 ? -v : v;
             private static float Lerp(float a, float b, float t) => a + (b - a) * t;
             private static float InverseLerp(float a, float b, float t) =>
                 (b - a) < 0.00001f ? 0f : Clamp01((t - a) / (b - a));
@@ -363,8 +373,7 @@ namespace AroundTheGroundSimulator
                 return t * t * (3f - 2f * t);
             }
 
-            // Rounds the combustion-cycle hold up to whole physics ticks so it is
-            // observable by the WaitForFixedUpdate cadence. pairHoldCycles == 0 → 0.
+            /// <summary>Converts pairHoldCycles into a duration rounded up to whole fixedDeltaTime ticks (0 if RPM/combustion is 0).</summary>
             private static float QuantizeHoldToTicks(
                 float pairHoldCycles, float smoothedRpm,
                 float combustionEventsPerRev, float fixedDeltaTime)
@@ -381,16 +390,13 @@ namespace AroundTheGroundSimulator
                 VehicleCalcInput inp, float finalPitch, float bankFinalVol,
                 NativeArray<LayerData> layerData, int layerOffset, int count,
                 bool isAcc, float bankVolumeLimit, float bankPitchTrim,
-                // hysteresis state IN
                 bool stateInitialized,
                 int stateLowIndex,
                 int stateHighIndex,
                 float stateHoldUntilTime,
-                // audio outputs
                 out int outLowIndex, out int outHighIndex,
                 out float outLowVolume, out float outHighVolume,
                 out float outLowPitch, out float outHighPitch,
-                // hysteresis state OUT
                 out bool outStateInitialized,
                 out int outStateLow,
                 out int outStateHigh,
@@ -437,6 +443,10 @@ namespace AroundTheGroundSimulator
                 }
 
                 int lo, hi;
+                int curLo = stateLowIndex < count ? stateLowIndex : count - 1;
+                int curHi = stateHighIndex < count ? stateHighIndex : count - 1;
+                float stretch = MathMax(1f, inp.maxPitchRatioBeyondPair);
+
                 if (!stateInitialized)
                 {
                     lo = idealLo; hi = idealHi;
@@ -448,71 +458,84 @@ namespace AroundTheGroundSimulator
                         inp.combustionEventsPerRev, inp.fixedDeltaTime);
                     outStateHoldUntil = inp.currentTime + holdDur;
                 }
-                else if (inp.currentTime < stateHoldUntilTime)
-                {
-                    lo = stateLowIndex < count ? stateLowIndex : count - 1;
-                    hi = stateHighIndex < count ? stateHighIndex : count - 1;
-                }
                 else
                 {
-                    bool wantsSwitch = (idealLo != stateLowIndex || idealHi != stateHighIndex);
-                    bool passesHysteresis = false;
-                    if (wantsSwitch && count > 1)
+                    bool inHold = inp.currentTime < stateHoldUntilTime;
+                    bool wantsSwitch = (idealLo != curLo || idealHi != curHi);
+                    int stepGap = MathAbs(idealHi - curHi);
+                    if (MathAbs(idealLo - curLo) > stepGap) stepGap = MathAbs(idealLo - curLo);
+                    bool multiStepBehind = stepGap > 1;
+
+                    // Leave hold early if RPM is far outside the pair window, or multi-step behind.
+                    bool stretchEscape = false;
+                    if (count > 1 && (inHold || wantsSwitch))
                     {
-                        if (idealHi > stateHighIndex)
-                        {
-                            float boundary = layerData[layerOffset + stateHighIndex].referenceRpm;
-                            passesHysteresis = inp.clampedRpm > boundary + inp.pairHysteresisRpm;
-                        }
-                        else if (idealHi < stateHighIndex)
-                        {
-                            float boundary = layerData[layerOffset + stateLowIndex].referenceRpm;
-                            passesHysteresis = inp.clampedRpm < boundary - inp.pairHysteresisRpm;
-                        }
-                        else
-                        {
-                            passesHysteresis = true; // same hi, different lo
-                        }
+                        float pairMin = layerData[layerOffset + curLo].referenceRpm;
+                        float pairMax = layerData[layerOffset + curHi].referenceRpm;
+                        if (pairMin > pairMax) { float tmp = pairMin; pairMin = pairMax; pairMax = tmp; }
+                        stretchEscape =
+                            inp.clampedRpm > pairMax * stretch ||
+                            inp.clampedRpm < pairMin / stretch;
                     }
 
-                    if (wantsSwitch && passesHysteresis)
-                    {
-                        if (idealHi > stateHighIndex && stateHighIndex < count - 1)
-                        {
-                            lo = stateHighIndex < count ? stateHighIndex : count - 1;
-                            hi = lo + 1 < count ? lo + 1 : lo;
-                        }
-                        else if (idealLo < stateLowIndex)
-                        {
-                            hi = stateLowIndex > 0 ? stateLowIndex : 0;
-                            lo = hi - 1 >= 0 ? hi - 1 : 0;
-                        }
-                        else
-                        {
-                            lo = idealLo; hi = idealHi;
-                        }
+                    bool forceIdeal = multiStepBehind || stretchEscape;
 
-                        outStateLow = lo;
-                        outStateHigh = hi;
-                        float holdDur = QuantizeHoldToTicks(
-                            inp.pairHoldCycles, inp.smoothedRpm,
-                            inp.combustionEventsPerRev, inp.fixedDeltaTime);
-                        outStateHoldUntil = inp.currentTime + holdDur;
+                    if (inHold && !forceIdeal)
+                    {
+                        lo = curLo;
+                        hi = curHi;
                     }
                     else
                     {
-                        lo = stateLowIndex < count ? stateLowIndex : count - 1;
-                        hi = stateHighIndex < count ? stateHighIndex : count - 1;
+                        bool passesHysteresis = false;
+                        if (wantsSwitch && count > 1)
+                        {
+                            if (idealHi > curHi)
+                            {
+                                float boundary = layerData[layerOffset + curHi].referenceRpm;
+                                passesHysteresis = inp.clampedRpm > boundary + inp.pairHysteresisRpm;
+                            }
+                            else if (idealHi < curHi)
+                            {
+                                float boundary = layerData[layerOffset + curLo].referenceRpm;
+                                passesHysteresis = inp.clampedRpm < boundary - inp.pairHysteresisRpm;
+                            }
+                            else
+                            {
+                                passesHysteresis = true; // same hi, different lo
+                            }
+                        }
+
+                        if (wantsSwitch && (passesHysteresis || forceIdeal))
+                        {
+                            lo = idealLo;
+                            hi = idealHi;
+                            outStateLow = lo;
+                            outStateHigh = hi;
+                            float holdDur = QuantizeHoldToTicks(
+                                inp.pairHoldCycles, inp.smoothedRpm,
+                                inp.combustionEventsPerRev, inp.fixedDeltaTime);
+                            outStateHoldUntil = inp.currentTime + holdDur;
+                        }
+                        else
+                        {
+                            lo = curLo;
+                            hi = curHi;
+                        }
                     }
                 }
 
                 outLowIndex = lo; outHighIndex = hi;
 
+                float pairLoRef = layerData[layerOffset + lo].referenceRpm;
+                float pairHiRef = layerData[layerOffset + hi].referenceRpm;
+                float pitchRpm = ClampRpmForPairPitch(inp.clampedRpm, pairLoRef, pairHiRef, stretch);
+
                 float t = 0f;
                 if (lo != hi)
                 {
-                    float a = layerData[layerOffset + lo].referenceRpm;
-                    float b = layerData[layerOffset + hi].referenceRpm;
+                    float a = pairLoRef;
+                    float b = pairHiRef;
                     t = InverseLerp(a, b, inp.clampedRpm);
                 }
 
@@ -523,7 +546,7 @@ namespace AroundTheGroundSimulator
                     if (bankVolumeLimit > 0f) g = g > bankVolumeLimit ? bankVolumeLimit : g;
                     outLowVolume = outHighVolume = g;
                     outLowPitch = outHighPitch =
-                        EvalPitchInJob(ld, inp.clampedRpm, finalPitch, bankPitchTrim, inp.maxRpm, inp.idleRpm);
+                        EvalPitchInJob(ld, pitchRpm, finalPitch, bankPitchTrim, inp.maxRpm, inp.idleRpm);
                     return;
                 }
 
@@ -544,39 +567,46 @@ namespace AroundTheGroundSimulator
 
                 outLowVolume = gLo;
                 outHighVolume = gHi;
-                outLowPitch = EvalPitchInJob(ldLo, inp.clampedRpm, finalPitch, bankPitchTrim, inp.maxRpm, inp.idleRpm);
-                outHighPitch = EvalPitchInJob(ldHi, inp.clampedRpm, finalPitch, bankPitchTrim, inp.maxRpm, inp.idleRpm);
+                outLowPitch = EvalPitchInJob(ldLo, pitchRpm, finalPitch, bankPitchTrim, inp.maxRpm, inp.idleRpm);
+                outHighPitch = EvalPitchInJob(ldHi, pitchRpm, finalPitch, bankPitchTrim, inp.maxRpm, inp.idleRpm);
+            }
+
+            /// <summary>Soft-clamps RPM used for pitch into the active pair window (± stretch).</summary>
+            private static float ClampRpmForPairPitch(
+                float clampedRpm, float pairLoRef, float pairHiRef, float stretch)
+            {
+                float minRef = pairLoRef < pairHiRef ? pairLoRef : pairHiRef;
+                float maxRef = pairLoRef > pairHiRef ? pairLoRef : pairHiRef;
+                minRef = MathMax(1f, minRef);
+                maxRef = MathMax(minRef, maxRef);
+                float s = stretch > 1f ? stretch : 1f;
+                float lo = minRef / s;
+                float hi = maxRef * s;
+                return ClampF(clampedRpm, lo, hi);
             }
 
             private static float EvalPitchInJob(
-                LayerData ld, float clampedRpm, float finalPitch,
+                LayerData ld, float pitchRpm, float finalPitch,
                 float bankPitchTrim, float maxRpm, float idleRpm)
             {
                 float referenceRpm = MathMax(1f, ld.referenceRpm);
-                float ratioPitch = (clampedRpm / referenceRpm) * finalPitch;
-
-                // Matches InverseLerp(idleRpm, maxRpm, clampedRpm) exactly,
-                // making idleRpm the zero point - consistent with normalizedRpm.
-                float progress = Clamp01((clampedRpm - idleRpm) / MathMax(1f, maxRpm - idleRpm));
+                float ratioPitch = (pitchRpm / referenceRpm) * finalPitch;
+                // loPitch/hiPitch progress uses idle as 0 (same basis as normalizedRpm).
+                float progress = Clamp01((pitchRpm - idleRpm) / MathMax(1f, maxRpm - idleRpm));
                 float hiLoMul = Lerp(ld.minPitch, ld.maxPitch, progress);
 
                 float pitch = ratioPitch * hiLoMul + bankPitchTrim + ld.pitchOffset;
-                return ClampF(pitch, 0.01f, 10f);
+                // AudioSource.pitch for clips is limited to about [-3, 3]; keep forward play in (0, 3].
+                return ClampF(pitch, 0.01f, 3f);
             }
 
-            private static float MathSin2(float x)
-            {
-                const float pi = 3.14159265f;
-                x = x % (2f * pi);
-                if (x < 0f) x += 2f * pi;
-                bool inv = x > pi;
-                if (inv) x -= pi;
-                float s = 4f * x * (pi - x) / (5f * pi * pi - 4f * x * (pi - x));
-                return inv ? -s : s;
-            }
         }
 
-        /// <summary>Owns NativeArrays, drives the Burst job each frame, and distributes results back to each synthesizer instance.</summary>
+        /// <summary>
+        /// Shared Burst batch for all active synthesizers (non-WebGL only).
+        /// One <see cref="IJobParallelFor"/> per fixed step; results applied the same tick
+        /// so volume/pitch slew can run immediately. Compiled out on WebGL.
+        /// </summary>
         internal static partial class VehicleNoiseBatchManager
         {
             private static readonly List<VehicleNoiseSynthesizer> sInstances =
@@ -594,76 +624,69 @@ namespace AroundTheGroundSimulator
             private static NativeArray<float> sBakedLowPass;
             private static int sAllocatedCount = 0;
             private static bool sNeedsRebuild = false;
-            private static int sLastDispatchFrame = -1;
+            private static double sLastDispatchFixedTime = -1d;
+            private static JobHandle sPendingHandle;
+            private static bool sJobPending;
 
             public static void Register(VehicleNoiseSynthesizer instance)
             {
                 if (!sInstances.Contains(instance))
-                { sInstances.Add(instance); sNeedsRebuild = true; }
+                    sInstances.Add(instance);
+                sNeedsRebuild = true;
+                instance._batchCurvesDirty = true;
             }
 
             public static void Unregister(VehicleNoiseSynthesizer instance)
             {
-                if (sInstances.Remove(instance)) sNeedsRebuild = true;
+                CompletePendingJob(applyResults: false);
+                if (!sInstances.Remove(instance)) return;
+                // Free Persistent buffers when nothing remains (no later tick will run).
+                if (sInstances.Count == 0) DisposeNativeArrays();
+                else sNeedsRebuild = true;
             }
 
+            /// <summary>Mark layer/curve NativeArrays dirty after audio banks are rebuilt.</summary>
+            public static void NotifyLayoutChanged(VehicleNoiseSynthesizer instance)
+            {
+                if (instance == null) return;
+                if (!sInstances.Contains(instance)) return;
+                sNeedsRebuild = true;
+                instance._batchCurvesDirty = true;
+            }
+
+            /// <summary>
+            /// First active synthesizer each fixed step schedules the batch; others no-op here.
+            /// Always Completes before returning so ApplySlewAndEffects can use fresh targets.
+            /// </summary>
             public static void ExecuteBatchIfNeeded(float deltaTime)
             {
-                // Rebuild check BEFORE ShouldDispatchThisFixedTick so the frame
-                // token is not consumed on rebuild frames - a subsequent fixed tick
-                // in the same frame can still dispatch after the arrays are ready.
                 int count = sInstances.Count;
                 if (sNeedsRebuild || count != sAllocatedCount)
                 {
+                    CompletePendingJob(applyResults: false);
                     if (count > 0) RebuildNativeArrays(count);
-                    return;
+                    else
+                    {
+                        DisposeNativeArrays();
+                        return;
+                    }
+                    // Fall through: schedule on the same tick after rebuild (avoids a silent first step).
                 }
 
-                if (!ShouldDispatchThisFixedTick()) return;
                 if (count == 0) return;
+                if (!ShouldDispatchThisFixedTick()) return;
+
+                CompletePendingJob(applyResults: true);
 
                 for (int v = 0; v < count; v++)
                 {
                     VehicleNoiseSynthesizer syn = sInstances[v];
                     sInputs[v] = syn.PackJobInput();
 
-                    int curveBase = v * CurveBakeResolution;
-                    for (int i = 0; i < CurveBakeResolution; i++)
+                    if (syn._batchCurvesDirty)
                     {
-                        sBakedPitch[curveBase + i] = syn.bakedPitchCurve[i];
-                        sBakedVolume[curveBase + i] = syn.bakedVolumeCurve[i];
-                        sBakedDistortion[curveBase + i] = syn.bakedDistortionCurve[i];
-                        sBakedLowPass[curveBase + i] = syn.bakedLowPassCurve[i];
-                    }
-
-                    int accOff = sAccOffsets[v];
-                    for (int i = 0; i < syn.accLayers.Count; i++)
-                    {
-                        RuntimeLayer rl = syn.accLayers[i];
-                        sAccLayers[accOff + i] = new LayerData
-                        {
-                            referenceRpm = rl.referenceRpm,
-                            rpmPitchTracking = rl.rpmPitchTracking,
-                            minPitch = rl.minPitch,
-                            maxPitch = rl.maxPitch,
-                            volumeOffset = rl.volumeOffset,
-                            pitchOffset = rl.pitchOffset
-                        };
-                    }
-
-                    int decOff = sDecOffsets[v];
-                    for (int i = 0; i < syn.decLayers.Count; i++)
-                    {
-                        RuntimeLayer rl = syn.decLayers[i];
-                        sDecLayers[decOff + i] = new LayerData
-                        {
-                            referenceRpm = rl.referenceRpm,
-                            rpmPitchTracking = rl.rpmPitchTracking,
-                            minPitch = rl.minPitch,
-                            maxPitch = rl.maxPitch,
-                            volumeOffset = rl.volumeOffset,
-                            pitchOffset = rl.pitchOffset
-                        };
+                        UploadCurvesForInstance(v, syn);
+                        syn._batchCurvesDirty = false;
                     }
                 }
 
@@ -682,12 +705,74 @@ namespace AroundTheGroundSimulator
                     CurveSamples = CurveBakeResolution
                 };
 
-                JobHandle handle = job.Schedule(count, 1);
-                handle.Complete();
+                // batchSize 1 for parallel vehicles; one batch for 1–3 instances (less split overhead).
+                int batchSize = count <= 3 ? count : 1;
+                if (batchSize < 1) batchSize = 1;
 
-                for (int v = 0; v < count; v++)
+                sPendingHandle = job.Schedule(count, batchSize);
+                sJobPending = true;
+                CompletePendingJob(applyResults: true);
+            }
+
+            private static void CompletePendingJob(bool applyResults)
+            {
+                if (!sJobPending) return;
+                sPendingHandle.Complete();
+                sJobPending = false;
+
+                if (!applyResults || !sOutputs.IsCreated) return;
+
+                int count = sInstances.Count;
+                int n = count < sAllocatedCount ? count : sAllocatedCount;
+                for (int v = 0; v < n; v++)
                     sInstances[v].ApplyJobData(sOutputs[v]);
+            }
 
+            private static void UploadCurvesForInstance(int vehicleIndex, VehicleNoiseSynthesizer syn)
+            {
+                if (syn.bakedPitchCurve == null || syn.bakedVolumeCurve == null ||
+                    syn.bakedDistortionCurve == null || syn.bakedLowPassCurve == null)
+                    return;
+
+                int curveBase = vehicleIndex * CurveBakeResolution;
+                for (int i = 0; i < CurveBakeResolution; i++)
+                {
+                    sBakedPitch[curveBase + i] = syn.bakedPitchCurve[i];
+                    sBakedVolume[curveBase + i] = syn.bakedVolumeCurve[i];
+                    sBakedDistortion[curveBase + i] = syn.bakedDistortionCurve[i];
+                    sBakedLowPass[curveBase + i] = syn.bakedLowPassCurve[i];
+                }
+            }
+
+            private static void UploadLayerDataForInstance(int vehicleIndex, VehicleNoiseSynthesizer syn)
+            {
+                int accOff = sAccOffsets[vehicleIndex];
+                for (int i = 0; i < syn.accLayers.Count; i++)
+                {
+                    RuntimeLayer rl = syn.accLayers[i];
+                    sAccLayers[accOff + i] = new LayerData
+                    {
+                        referenceRpm = rl.referenceRpm,
+                        minPitch = rl.minPitch,
+                        maxPitch = rl.maxPitch,
+                        volumeOffset = rl.volumeOffset,
+                        pitchOffset = rl.pitchOffset
+                    };
+                }
+
+                int decOff = sDecOffsets[vehicleIndex];
+                for (int i = 0; i < syn.decLayers.Count; i++)
+                {
+                    RuntimeLayer rl = syn.decLayers[i];
+                    sDecLayers[decOff + i] = new LayerData
+                    {
+                        referenceRpm = rl.referenceRpm,
+                        minPitch = rl.minPitch,
+                        maxPitch = rl.maxPitch,
+                        volumeOffset = rl.volumeOffset,
+                        pitchOffset = rl.pitchOffset
+                    };
+                }
             }
 
             private static void RebuildNativeArrays(int count)
@@ -721,6 +806,10 @@ namespace AroundTheGroundSimulator
                 {
                     sAccOffsets[v] = accOffsets[v];
                     sDecOffsets[v] = decOffsets[v];
+                    VehicleNoiseSynthesizer syn = sInstances[v];
+                    UploadLayerDataForInstance(v, syn);
+                    UploadCurvesForInstance(v, syn);
+                    syn._batchCurvesDirty = false;
                 }
 
                 sAllocatedCount = count;
@@ -729,6 +818,12 @@ namespace AroundTheGroundSimulator
 
             private static void DisposeNativeArrays()
             {
+                if (sJobPending)
+                {
+                    sPendingHandle.Complete();
+                    sJobPending = false;
+                }
+
                 if (sInputs.IsCreated) sInputs.Dispose();
                 if (sOutputs.IsCreated) sOutputs.Dispose();
                 if (sAccLayers.IsCreated) sAccLayers.Dispose();
@@ -744,11 +839,12 @@ namespace AroundTheGroundSimulator
 
             public static void DisposeAll() => DisposeNativeArrays();
 
+            /// <summary>True once per fixed step (shared gate for all instances).</summary>
             public static bool ShouldDispatchThisFixedTick()
             {
-                int f = Time.frameCount;
-                if (sLastDispatchFrame == f) return false;
-                sLastDispatchFrame = f;
+                double t = Time.fixedTimeAsDouble;
+                if (sLastDispatchFixedTime == t) return false;
+                sLastDispatchFixedTime = t;
                 return true;
             }
         }
@@ -812,6 +908,7 @@ namespace AroundTheGroundSimulator
 
                 pairHysteresisRpm = pairHysteresisRpm,
                 pairHoldCycles = pairHoldCycles,
+                maxPitchRatioBeyondPair = maxPitchRatioBeyondPair,
                 currentTime = Time.time,
                 fixedDeltaTime = Time.fixedDeltaTime
             };
@@ -904,23 +1001,36 @@ namespace AroundTheGroundSimulator
                 float activity = Mathf.Max(layer.source.volume, tv);
                 if (activity < 0.0005f) continue;
 
-                layer.lowPass.cutoffFrequency =
-                    Mathf.MoveTowards(layer.lowPass.cutoffFrequency, o.lowPassTarget, slew2000);
-                layer.lowPass.lowpassResonanceQ =
-                    Mathf.MoveTowards(layer.lowPass.lowpassResonanceQ, o.lowPassQTarget, slewBase);
-                layer.highPass.cutoffFrequency =
-                    Mathf.MoveTowards(layer.highPass.cutoffFrequency, o.highPassTarget, slew180);
-                layer.highPass.highpassResonanceQ =
-                    Mathf.MoveTowards(layer.highPass.highpassResonanceQ, o.highPassQTarget, slewBase);
-                layer.distortion.distortionLevel =
-                    Mathf.MoveTowards(layer.distortion.distortionLevel, o.distortionTarget, slewBase);
-                layer.chorus.dryMix = Mathf.MoveTowards(layer.chorus.dryMix, o.chorusDryTarget, slewBase);
-                layer.chorus.wetMix1 = Mathf.MoveTowards(layer.chorus.wetMix1, o.chorusWet * 0.6f, slewBase);
-                layer.chorus.wetMix2 = Mathf.MoveTowards(layer.chorus.wetMix2, o.chorusWet * 0.3f, slewBase);
-                layer.chorus.wetMix3 = Mathf.MoveTowards(layer.chorus.wetMix3, o.chorusWet * 0.1f, slewBase);
-                layer.chorus.depth = Mathf.MoveTowards(layer.chorus.depth, o.chorusDepth, slewBase);
-                layer.chorus.rate = Mathf.MoveTowards(layer.chorus.rate, o.chorusRate, slewBase);
-                if (layer.reverb != null)
+                // Skip disabled filter components (no need to write idle DSP params).
+                if (layer.lowPass != null && layer.lowPass.enabled)
+                {
+                    layer.lowPass.cutoffFrequency =
+                        Mathf.MoveTowards(layer.lowPass.cutoffFrequency, o.lowPassTarget, slew2000);
+                    layer.lowPass.lowpassResonanceQ =
+                        Mathf.MoveTowards(layer.lowPass.lowpassResonanceQ, o.lowPassQTarget, slewBase);
+                }
+                if (layer.highPass != null && layer.highPass.enabled)
+                {
+                    layer.highPass.cutoffFrequency =
+                        Mathf.MoveTowards(layer.highPass.cutoffFrequency, o.highPassTarget, slew180);
+                    layer.highPass.highpassResonanceQ =
+                        Mathf.MoveTowards(layer.highPass.highpassResonanceQ, o.highPassQTarget, slewBase);
+                }
+                if (layer.distortion != null && layer.distortion.enabled)
+                {
+                    layer.distortion.distortionLevel =
+                        Mathf.MoveTowards(layer.distortion.distortionLevel, o.distortionTarget, slewBase);
+                }
+                if (layer.chorus != null && layer.chorus.enabled)
+                {
+                    layer.chorus.dryMix = Mathf.MoveTowards(layer.chorus.dryMix, o.chorusDryTarget, slewBase);
+                    layer.chorus.wetMix1 = Mathf.MoveTowards(layer.chorus.wetMix1, o.chorusWet * 0.6f, slewBase);
+                    layer.chorus.wetMix2 = Mathf.MoveTowards(layer.chorus.wetMix2, o.chorusWet * 0.3f, slewBase);
+                    layer.chorus.wetMix3 = Mathf.MoveTowards(layer.chorus.wetMix3, o.chorusWet * 0.1f, slewBase);
+                    layer.chorus.depth = Mathf.MoveTowards(layer.chorus.depth, o.chorusDepth, slewBase);
+                    layer.chorus.rate = Mathf.MoveTowards(layer.chorus.rate, o.chorusRate, slewBase);
+                }
+                if (layer.reverb != null && layer.reverb.enabled)
                 {
                     layer.reverb.reverbLevel =
                         Mathf.MoveTowards(layer.reverb.reverbLevel, o.reverbLevel, slew2500);
@@ -952,8 +1062,6 @@ namespace AroundTheGroundSimulator
             float normalizedRpmForFx = Mathf.InverseLerp(
                 Mathf.Max(0f, idleRpm), Mathf.Max(idleRpm + 1f, maxRpm), clampedRpm);
             UpdateBurble(deltaTime, clampedRpm);
-            UpdateLugging(deltaTime, clampedRpm);
-            UpdateThrottleBodyEffects(clampedRpm, normalizedRpmForFx);
             UpdateRedlineEffect(clampedRpm);
             ApplyPostEffectsToDctShiftSource(normalizedRpmForFx, deltaTime);
             UpdateDiagnostics(deltaTime);
@@ -1056,8 +1164,12 @@ namespace AroundTheGroundSimulator
         public float pairHysteresisRpm = 120f;
 
         [Range(0f, 20f)]
-        [Tooltip("Minimum hold after a pair switch, in combustion-event cycles. The resulting duration is rounded UP to whole physics ticks (fixedDeltaTime), so it actually blocks switching. 0 disables the hold. Raise this for longer, more obvious stability.")]
+        [Tooltip("Minimum hold after a pair switch, in combustion-event cycles. The resulting duration is rounded UP to whole physics ticks (fixedDeltaTime), so it actually blocks switching. 0 disables the hold. Raise this for longer, more obvious stability. High values (e.g. 16) cause long pitch stretch if RPM races ahead of the held pair.")]
         public float pairHoldCycles = 0.5f;
+
+        [Range(1f, 2f)]
+        [Tooltip("How far live RPM may go past the active pair's outer reference RPM before pitch is soft-clamped and the pair hold is escaped (1.2 = ±20%). Prevents chipmunk pitch during pair catch-up.")]
+        public float maxPitchRatioBeyondPair = 1.2f;
 
         [Header("Combustion Timing")]
         [Space(5)]
@@ -1170,44 +1282,6 @@ namespace AroundTheGroundSimulator
         [Tooltip("Random ±pitch variation for the DCT shift burble overlay.")]
         public float dctShiftBurblePitchVariation = 0.05f;
 
-        [Header("Engine Lugging Configuration")]
-        [Space(10)]
-        [Tooltip("Enable engine lugging/straining sound effect.")]
-        public bool enableEngineLugging = true;
-
-        [Tooltip("Audio clips for engine lugging sounds.")]
-        public AudioClip[] luggingSounds;
-
-        [Range(0f, 1f)]
-        [Tooltip("Master volume for lugging sounds.")]
-        public float luggingVolume = 0.8f;
-
-        [Tooltip("Minimum RPM for lugging effect to start.")]
-        public float luggingMinRPMThreshold = 800f;
-
-        [Tooltip("Maximum RPM at which lugging effect can occur.")]
-        public float luggingMaxRPMThreshold = 2000f;
-
-        [Range(0f, 1f)]
-        [Tooltip("Minimum engine load required to trigger lugging sound.")]
-        public float luggingMinLoadThreshold = 0.7f;
-
-        [Range(0.1f, 20f)]
-        [Tooltip("Speed at which lugging sound fades in.")]
-        public float luggingFadeInSpeed = 5f;
-
-        [Range(0.1f, 20f)]
-        [Tooltip("Speed at which lugging sound fades out.")]
-        public float luggingFadeOutSpeed = 3f;
-
-        [Range(0.5f, 1.5f)]
-        [Tooltip("Base pitch for lugging sounds.")]
-        public float luggingBasePitch = 0.9f;
-
-        [Range(0f, 0.2f)]
-        [Tooltip("Random pitch variation for lugging clips.")]
-        public float luggingRandomPitchVariation = 0.05f;
-
         [Header("Throttle Body Configuration")]
         [Space(10)]
         [Tooltip("Enable throttle body sounds: intake roar on tip-in, flutter on tip-out.")]
@@ -1230,14 +1304,6 @@ namespace AroundTheGroundSimulator
         [Range(0f, 0.3f)]
         [Tooltip("Random ±pitch variation applied to each throttle body one-shot.")]
         public float throttleBodyPitchVariation = 0.05f;
-
-        [Range(0.005f, 0.5f)]
-        [Tooltip("Minimum load delta per fixed tick required to trigger the intake roar (tip-in).")]
-        public float intakeRoarLoadDeltaThreshold = 0.05f;
-
-        [Range(0.005f, 0.5f)]
-        [Tooltip("Minimum load delta per fixed tick required to trigger the throttle flutter (tip-out).")]
-        public float throttleFlutterLoadDeltaThreshold = 0.05f;
 
         [Range(0.01f, 1f)]
         [Tooltip("Minimum seconds between successive throttle body triggers (prevents spamming).")]
@@ -1319,6 +1385,7 @@ namespace AroundTheGroundSimulator
         // [Tooltip("Base pitch value when engine is near idle.")]
         // public float idlePitch = 1f;
 
+        /// <summary>Forces full acceleration-bank volume (internal/API). Not shown in the inspector.</summary>
         [HideInInspector]
         public bool launchMode = false;
 
@@ -1379,8 +1446,6 @@ namespace AroundTheGroundSimulator
         private float[] DcMaxrTable;
         private bool nonDecelerateAudiosMode = true;
         private float combustionEventsPerRev = 2f;
-        private List<AudioSource> luggingAudioSources;
-        private const int LUGGINGAUDIOPOOLSIZE = 2;
         private const int BURBLEAUDIOPOOLSIZE = 5;
         [Header("Filter Slew Rates")]
         [Range(100f, 5000f)]
@@ -1417,7 +1482,7 @@ namespace AroundTheGroundSimulator
         private float smoothedLoad;
         private float previousSmoothedRpm;
         private float previousSmoothedLoad;
-        private float lastPitchWarningTime;
+
         private float nextBurbleTime;
         private AudioSource dctShiftBurbleSource;
         private AudioLowPassFilter dctShiftBurbleLowPass;
@@ -1432,9 +1497,6 @@ namespace AroundTheGroundSimulator
         private enum DctShiftFadeState { Idle, FadeIn, Sustain, FadeOut }
         private DctShiftFadeState dctShiftFadeState = DctShiftFadeState.Idle;
         private const float DctShiftFadeDuration = 0.020f; // 20 ms
-        private float currentLuggingVolume;
-        private int activeLuggingIndex = -1;
-        private float currentLuggingPitchRandom;
         private float diagnosticTimer;
         private BankBlendState accBlendState;
         private BankBlendState decBlendState;
@@ -1449,7 +1511,8 @@ namespace AroundTheGroundSimulator
         public float rpm
         {
             get => _rpm;
-            set => _rpm = Mathf.Clamp(value, 0f, Mathf.Max(_maxRpm, maximumTheoricalRPM, 1f));
+            // Nested Mathf.Max(a,b) only — 3+ args use params float[] and allocate every call.
+            set => _rpm = Mathf.Clamp(value, 0f, Mathf.Max(Mathf.Max(_maxRpm, maximumTheoricalRPM), 1f));
         }
 
         public float load
@@ -1640,6 +1703,7 @@ namespace AroundTheGroundSimulator
                 loadBlendWidth = Mathf.Max(0.01f, loadBlendWidth);
                 clipVolumeResponseTime = Mathf.Max(0.005f, clipVolumeResponseTime);
                 clipPitchResponseTime = Mathf.Max(0.005f, clipPitchResponseTime);
+                maxPitchRatioBeyondPair = Mathf.Clamp(maxPitchRatioBeyondPair, 1f, 2f);
                 rpmResponseTime = Mathf.Max(0.005f, rpmResponseTime);
                 loadResponseTime = Mathf.Max(0.005f, loadResponseTime);
                 pairHysteresisRpm = Mathf.Max(0f, pairHysteresisRpm);
@@ -1665,8 +1729,8 @@ namespace AroundTheGroundSimulator
                 EngineAudioClipData clip = clips[i];
                 if (clip == null) continue;
                 clip.rpmValue = Mathf.Max(1, clip.rpmValue);
-                clip.loPitch = Mathf.Clamp(clip.loPitch, 0.01f, 10f);
-                clip.hiPitch = Mathf.Clamp(clip.hiPitch, 0.01f, 10f);
+                clip.loPitch = Mathf.Clamp(clip.loPitch, 0.01f, 3f);
+                clip.hiPitch = Mathf.Clamp(clip.hiPitch, 0.01f, 3f);
             }
         }
         private void BuildRuntimeConfiguration()
@@ -1683,7 +1747,7 @@ namespace AroundTheGroundSimulator
             if (DcNormalrTable != null && DcNormalrTable.Length > 0)
                 highestClipRpm = Mathf.Max(highestClipRpm, DcNormalrTable[DcNormalrTable.Length - 1]);
 
-            _maxRpm = Mathf.Max(maximumTheoricalRPM, highestClipRpm, 1f);
+            _maxRpm = Mathf.Max(Mathf.Max(maximumTheoricalRPM, highestClipRpm), 1f);
             bool idleRpmNeedsRefresh = _idleRpm <= 0f || _idleRpm >= _maxRpm;
             _idleRpm = Mathf.Clamp(idleRpmNeedsRefresh ? InferIdleRpm() : _idleRpm, 0f, _maxRpm);
         }
@@ -1707,7 +1771,23 @@ namespace AroundTheGroundSimulator
         {
             if (clips == null || clips.Count == 0) { minTable = Array.Empty<float>(); normalTable = Array.Empty<float>(); maxTable = Array.Empty<float>(); return; }
 
-            var sorted = clips.Where(c => c != null && c.audioClip != null).OrderBy(c => c.rpmValue).ToList();
+            var sorted = new List<EngineAudioClipData>(clips.Count);
+            for (int i = 0; i < clips.Count; i++)
+            {
+                EngineAudioClipData c = clips[i];
+                if (c != null && c.audioClip != null) sorted.Add(c);
+            }
+            for (int i = 1; i < sorted.Count; i++)
+            {
+                EngineAudioClipData key = sorted[i];
+                int j = i - 1;
+                while (j >= 0 && sorted[j].rpmValue > key.rpmValue)
+                {
+                    sorted[j + 1] = sorted[j];
+                    j--;
+                }
+                sorted[j + 1] = key;
+            }
             int count = sorted.Count;
             if (count == 0) { minTable = Array.Empty<float>(); normalTable = Array.Empty<float>(); maxTable = Array.Empty<float>(); return; }
 
@@ -1747,14 +1827,35 @@ namespace AroundTheGroundSimulator
         private void RebuildAllAudioSources()
         {
             DestroyAllRuntimeSources();
-            luggingAudioSources = new List<AudioSource>();
             BuildBankLayers(acceleratingSounds, accLayers, "ACC");
             BuildBankLayers(deceleratingSounds, decLayers, "DEC");
-            BuildBurblePool();
-            BuildDctShiftBurbleSource();
-            BuildLuggingPool();
-            BuildThrottleBodyPool();
-            BuildRedlinePool();
+
+            // Only create one-shot pools when the feature is on and clips exist.
+            if (enableExhaustBurble && burbleSounds != null && burbleSounds.Length > 0)
+                BuildBurblePool();
+            else
+                burbleAudioSources.Clear();
+
+            if (enableDctShiftBurble && dctShiftBurbleSound != null)
+                BuildDctShiftBurbleSource();
+            else
+                ClearDctShiftBurbleRefs();
+
+            bool hasIntakeRoar = intakeRoarSounds != null && intakeRoarSounds.Length > 0;
+            bool hasFlutter = throttleFlutterSounds != null && throttleFlutterSounds.Length > 0;
+            if (enableThrottleBody && (hasIntakeRoar || hasFlutter))
+                BuildThrottleBodyPool();
+            else
+            {
+                intakeRoarAudioSources.Clear();
+                throttleFlutterAudioSources.Clear();
+            }
+
+            if (enableRedlineEffect && redlineSounds != null && redlineSounds.Length > 0)
+                BuildRedlinePool();
+            else
+                redlineAudioSources.Clear();
+
             accTargetVolumes = new float[accLayers.Count];
             accTargetPitches = new float[accLayers.Count];
             decTargetVolumes = new float[decLayers.Count];
@@ -1762,6 +1863,9 @@ namespace AroundTheGroundSimulator
             accBlendState = default;
             decBlendState = default;
             dctShiftBurbleStopTime = 0f;
+#if !UNITY_WEBGL
+            VehicleNoiseBatchManager.NotifyLayoutChanged(this);
+#endif
         }
 
         private void BuildBankLayers(List<EngineAudioClipData> clips, List<RuntimeLayer> runtime, string prefix)
@@ -1769,11 +1873,34 @@ namespace AroundTheGroundSimulator
             runtime.Clear();
             if (clips == null) return;
 
-            var sorted = clips.Where(c => c != null && c.audioClip != null).OrderBy(c => c.rpmValue).ToList();
+            // Sort clips by reference RPM (insertion sort; no LINQ).
+            var sorted = new List<EngineAudioClipData>(clips.Count);
+            for (int i = 0; i < clips.Count; i++)
+            {
+                EngineAudioClipData c = clips[i];
+                if (c != null && c.audioClip != null) sorted.Add(c);
+            }
+            for (int i = 1; i < sorted.Count; i++)
+            {
+                EngineAudioClipData key = sorted[i];
+                int j = i - 1;
+                while (j >= 0 && sorted[j].rpmValue > key.rpmValue)
+                {
+                    sorted[j + 1] = sorted[j];
+                    j--;
+                }
+                sorted[j + 1] = key;
+            }
+
+            bool useLpf = NeedsLowPassFilter();
+            bool useHpf = NeedsHighPassFilter();
+            bool useDist = NeedsDistortionFilter();
+            bool useChorus = NeedsChorusFilter();
+            bool useReverb = NeedsPerSourceReverbFilter();
+
             for (int i = 0; i < sorted.Count; i++)
             {
                 EngineAudioClipData clipData = sorted[i];
-                if (clipData == null || clipData.audioClip == null) continue;
                 GameObject host = new GameObject($"{prefix}{i:00}_{clipData.rpmValue}");
                 host.transform.SetParent(transform, false);
                 AudioSource source = host.AddComponent<AudioSource>();
@@ -1785,15 +1912,17 @@ namespace AroundTheGroundSimulator
                 source.pitch = 1f;
                 source.mute = false;
 
+                // Only add DSP components that can actually affect audio (strength > 0).
+                // Avoids idle DSP graph cost when a filter path is unused.
                 RuntimeLayer layer = new RuntimeLayer
                 {
                     host = host,
                     source = source,
-                    lowPass = host.AddComponent<AudioLowPassFilter>(),
-                    highPass = host.AddComponent<AudioHighPassFilter>(),
-                    distortion = host.AddComponent<AudioDistortionFilter>(),
-                    chorus = host.AddComponent<AudioChorusFilter>(),
-                    reverb = (useSharedMixerReverb && mixer != null) ? null : host.AddComponent<AudioReverbFilter>(),
+                    lowPass = useLpf ? host.AddComponent<AudioLowPassFilter>() : null,
+                    highPass = useHpf ? host.AddComponent<AudioHighPassFilter>() : null,
+                    distortion = useDist ? host.AddComponent<AudioDistortionFilter>() : null,
+                    chorus = useChorus ? host.AddComponent<AudioChorusFilter>() : null,
+                    reverb = useReverb ? host.AddComponent<AudioReverbFilter>() : null,
                     clip = clipData.audioClip,
                     referenceRpm = Mathf.Max(1f, clipData.rpmValue),
                     minPitch = clipData.loPitch,
@@ -1801,11 +1930,25 @@ namespace AroundTheGroundSimulator
                     volumeOffset = clipData.volumeOffset,
                     pitchOffset = clipData.pitchOffset
                 };
-                InitializeFilterDefaults(layer);
+                InitializeFilterDefaults(layer, useLpf, useHpf, useDist, useChorus, useReverb);
                 runtime.Add(layer);
                 if (keepBankClipsPlaying) source.Play();
             }
         }
+
+        private bool NeedsLowPassFilter() =>
+            lowPassIntensity > 0.0001f || lowPassStrength > 0.0001f ||
+            mufflingIntensity > 0.0001f || resonanceStrength > 0.0001f;
+
+        private bool NeedsHighPassFilter() => highPassStrength > 0.0001f;
+
+        // Job: distDrive * distortionIntensity * (1 + distortionStrength)
+        private bool NeedsDistortionFilter() => distortionIntensity > 0.0001f;
+
+        private bool NeedsChorusFilter() => chorusStrength > 0.0001f;
+
+        private bool NeedsPerSourceReverbFilter() =>
+            reverbStrength > 0.0001f && !(useSharedMixerReverb && mixer != null);
 
         private void BuildBurblePool()
         {
@@ -1823,6 +1966,15 @@ namespace AroundTheGroundSimulator
             }
         }
 
+        private void ClearDctShiftBurbleRefs()
+        {
+            dctShiftBurbleSource = null;
+            dctShiftBurbleLowPass = null;
+            dctShiftBurbleHighPass = null;
+            dctShiftBurbleDistortion = null;
+            dctShiftBurbleChorus = null;
+        }
+
         private void BuildDctShiftBurbleSource()
         {
             GameObject host = new GameObject("DCTSHIFTBURBLE");
@@ -1835,45 +1987,16 @@ namespace AroundTheGroundSimulator
             source.pitch = dctShiftBurbleBasePitch;
             dctShiftBurbleSource = source;
 
+            // Light LPF only for the DCT overlay envelope path. Distortion/chorus
+            // were always forced off at runtime — do not pay for those components.
             dctShiftBurbleLowPass = host.AddComponent<AudioLowPassFilter>();
             dctShiftBurbleLowPass.enabled = true;
             dctShiftBurbleLowPass.cutoffFrequency = 22000f;
             dctShiftBurbleLowPass.lowpassResonanceQ = 1f;
 
-            dctShiftBurbleHighPass = host.AddComponent<AudioHighPassFilter>();
-            dctShiftBurbleHighPass.enabled = true;
-            dctShiftBurbleHighPass.cutoffFrequency = 10f;
-            dctShiftBurbleHighPass.highpassResonanceQ = 1f;
-
-            dctShiftBurbleDistortion = host.AddComponent<AudioDistortionFilter>();
-            dctShiftBurbleDistortion.enabled = false;
-            dctShiftBurbleDistortion.distortionLevel = 0f;
-
-            dctShiftBurbleChorus = host.AddComponent<AudioChorusFilter>();
-            dctShiftBurbleChorus.enabled = false;
-            dctShiftBurbleChorus.dryMix = 1f;
-            dctShiftBurbleChorus.wetMix1 = 0f;
-            dctShiftBurbleChorus.wetMix2 = 0f;
-            dctShiftBurbleChorus.wetMix3 = 0f;
-            dctShiftBurbleChorus.delay = 20f;
-            dctShiftBurbleChorus.rate = 0.8f;
-            dctShiftBurbleChorus.depth = 0f;
-        }
-
-        private void BuildLuggingPool()
-        {
-            for (int i = 0; i < LUGGINGAUDIOPOOLSIZE; i++)
-            {
-                GameObject host = new GameObject($"LUGGING{i:00}");
-                host.transform.SetParent(transform, false);
-                AudioSource source = host.AddComponent<AudioSource>();
-                ApplyTemplateToAudioSource(source);
-                source.loop = true;
-                source.playOnAwake = false;
-                source.volume = 0f;
-                source.pitch = luggingBasePitch;
-                luggingAudioSources.Add(source);
-            }
+            dctShiftBurbleHighPass = null;
+            dctShiftBurbleDistortion = null;
+            dctShiftBurbleChorus = null;
         }
 
         private void BuildRedlinePool()
@@ -1918,27 +2041,42 @@ namespace AroundTheGroundSimulator
             }
         }
 
-        private void InitializeFilterDefaults(RuntimeLayer layer)
+        private void InitializeFilterDefaults(
+            RuntimeLayer layer,
+            bool useLpf, bool useHpf, bool useDist, bool useChorus, bool useReverb)
         {
-            layer.lowPass.enabled = true;
-            layer.lowPass.cutoffFrequency = 22000f;
-            layer.lowPass.lowpassResonanceQ = 1f;
-            layer.highPass.enabled = true;
-            layer.highPass.cutoffFrequency = 10f;
-            layer.highPass.highpassResonanceQ = 1f;
-            layer.distortion.enabled = true;
-            layer.distortion.distortionLevel = 0f;
-            layer.chorus.enabled = true;
-            layer.chorus.dryMix = 1f;
-            layer.chorus.wetMix1 = 0f;
-            layer.chorus.wetMix2 = 0f;
-            layer.chorus.wetMix3 = 0f;
-            layer.chorus.delay = 20f;
-            layer.chorus.rate = 0.8f;
-            layer.chorus.depth = 0f;
+            // Only components that were actually added are non-null.
+            if (layer.lowPass != null)
+            {
+                layer.lowPass.enabled = useLpf;
+                layer.lowPass.cutoffFrequency = 22000f;
+                layer.lowPass.lowpassResonanceQ = 1f;
+            }
+            if (layer.highPass != null)
+            {
+                layer.highPass.enabled = useHpf;
+                layer.highPass.cutoffFrequency = 10f;
+                layer.highPass.highpassResonanceQ = 1f;
+            }
+            if (layer.distortion != null)
+            {
+                layer.distortion.enabled = useDist;
+                layer.distortion.distortionLevel = 0f;
+            }
+            if (layer.chorus != null)
+            {
+                layer.chorus.enabled = useChorus;
+                layer.chorus.dryMix = 1f;
+                layer.chorus.wetMix1 = 0f;
+                layer.chorus.wetMix2 = 0f;
+                layer.chorus.wetMix3 = 0f;
+                layer.chorus.delay = 20f;
+                layer.chorus.rate = 0.8f;
+                layer.chorus.depth = 0f;
+            }
             if (layer.reverb != null)
             {
-                layer.reverb.enabled = true;
+                layer.reverb.enabled = useReverb;
                 layer.reverb.reverbLevel = -10000f;
                 layer.reverb.decayTime = 1f;
                 layer.reverb.diffusion = 100f;
@@ -1969,12 +2107,14 @@ namespace AroundTheGroundSimulator
             if (calculationRoutine != null) { StopCoroutine(calculationRoutine); calculationRoutine = null; }
         }
 
+        // Reused yield instruction (creating a new WaitForFixedUpdate each frame allocates).
+        private static readonly WaitForFixedUpdate sWaitFixedUpdate = new WaitForFixedUpdate();
+
         private IEnumerator CalculateAsync()
         {
-            var waitFixed = new WaitForFixedUpdate();
             while (true)
             {
-                yield return waitFixed;
+                yield return sWaitFixedUpdate;
                 if (!_isOn) { FadeAllToSilence(Time.fixedDeltaTime); continue; }
 
                 float deltaTime = Time.fixedDeltaTime;
@@ -1990,15 +2130,7 @@ namespace AroundTheGroundSimulator
 #if UNITY_WEBGL
                 ProcessAudioFrame(deltaTime);
 #else
-                // Run the batch job (only the first synthesizer per fixed tick
-                // actually dispatches; the rest no-op safely because the batch
-                // already processed all instances).
                 VehicleNoiseBatchManager.ExecuteBatchIfNeeded(deltaTime);
-
-                // ALWAYS apply the volume/pitch slew to AudioSource every fixed
-                // tick regardless of whether this instance triggered the batch.
-                // The target arrays were written by the job; the Lerp must advance
-                // every tick or audio stalls when physics outruns rendering.
                 ApplySlewAndEffects(deltaTime);
 #endif
             }
@@ -2006,18 +2138,13 @@ namespace AroundTheGroundSimulator
 
 #if UNITY_WEBGL
         /// <summary>
-        /// Single-instance, main-thread audio frame used on WebGL where the
-        /// Burst job system is unavailable. Mirrors the Burst pipeline so the
-        /// audible result (robust RPM-ratio pitch + Hi/Lo + trims + shift
-        /// oscillation) is identical to the desktop path.
+        /// WebGL audio tick (main thread). Same algorithm as the desktop Burst job + slew path.
         /// </summary>
         private void ProcessAudioFrame(float deltaTime)
         {
             float clampedRpm = Mathf.Clamp(smoothedRpm, 0f, Mathf.Max(1f, _maxRpm));
             float normalizedRpm = Mathf.InverseLerp(Mathf.Max(0f, _idleRpm), Mathf.Max(_idleRpm + 1f, _maxRpm), clampedRpm);
 
-            // Global pitch: user curve, load contribution, and shift
-            // oscillation. Mirrors the Burst job path exactly.
             float curvePitch = SampleBakedCurve(bakedPitchCurve, normalizedRpm);
             float loadPitchContrib = smoothedLoad * loadEffectivenessOnPitch;
             finalPitch = Mathf.Max(0.01f, curvePitch + loadPitchContrib + shiftPitchOsc);
@@ -2058,8 +2185,6 @@ namespace AroundTheGroundSimulator
             ApplyPostEffectsToBank(accLayers, accTargetVolumes, normalizedRpm, deltaTime);
             ApplyPostEffectsToBank(decLayers, decTargetVolumes, normalizedRpm, deltaTime);
             UpdateBurble(deltaTime, clampedRpm);
-            UpdateLugging(deltaTime, clampedRpm);
-            UpdateThrottleBodyEffects(clampedRpm, normalizedRpm);
             UpdateRedlineEffect(clampedRpm);
             ApplyPostEffectsToDctShiftSource(normalizedRpm, deltaTime);
             UpdateDiagnostics(deltaTime);
@@ -2083,13 +2208,16 @@ namespace AroundTheGroundSimulator
 
             FindStableNeighbourPair(bank, clampedRpm, ref blendState, out int lo, out int hi);
 
+            float stretch = Mathf.Max(1f, maxPitchRatioBeyondPair);
+            float pitchRpm = ClampRpmForPairPitchMain(clampedRpm, bank[lo].referenceRpm, bank[hi].referenceRpm, stretch);
+
             if (lo == hi)
             {
                 RuntimeLayer single = bank[lo];
                 float g = bankBaseGain * Mathf.Max(0f, 1f + single.volumeOffset);
                 if (bankVolumeLimit > 0f) g = Mathf.Min(g, bankVolumeLimit);
                 targetVolumes[lo] = g;
-                targetPitches[lo] = EvaluateLayerPitch(single, clampedRpm, finalPitch, bankPitchTrim);
+                targetPitches[lo] = EvaluateLayerPitch(single, pitchRpm, finalPitch, bankPitchTrim);
                 return;
             }
 
@@ -2106,84 +2234,154 @@ namespace AroundTheGroundSimulator
 
             targetVolumes[lo] = gLo;
             targetVolumes[hi] = gHi;
-            targetPitches[lo] = EvaluateLayerPitch(lLo, clampedRpm, finalPitch, bankPitchTrim);
-            targetPitches[hi] = EvaluateLayerPitch(lHi, clampedRpm, finalPitch, bankPitchTrim);
+            targetPitches[lo] = EvaluateLayerPitch(lLo, pitchRpm, finalPitch, bankPitchTrim);
+            targetPitches[hi] = EvaluateLayerPitch(lHi, pitchRpm, finalPitch, bankPitchTrim);
         }
 
-        private float EvaluateLayerPitch(RuntimeLayer layer, float clampedRpm, float finalPitch, float bankPitchTrim)
+        private float EvaluateLayerPitch(RuntimeLayer layer, float pitchRpm, float finalPitch, float bankPitchTrim)
         {
-            // Mirror of EvalPitchInJob for the non-Burst (WebGL) path.
-            // progress uses InverseLerp(idleRpm, maxRpm, clampedRpm) semantics so
-            // idleRpm is the zero-point, consistent with normalizedRpm everywhere else.
             float referenceRpm = Mathf.Max(1f, layer.referenceRpm);
-            float ratioPitch = (clampedRpm / referenceRpm) * finalPitch;
-            float progress = Mathf.Clamp01((clampedRpm - _idleRpm) / Mathf.Max(1f, _maxRpm - _idleRpm));
+            float ratioPitch = (pitchRpm / referenceRpm) * finalPitch;
+            float progress = Mathf.Clamp01((pitchRpm - _idleRpm) / Mathf.Max(1f, _maxRpm - _idleRpm));
             float hiLoMul = Mathf.Lerp(layer.minPitch, layer.maxPitch, progress);
             float pitch = ratioPitch * hiLoMul + bankPitchTrim + layer.pitchOffset;
-            return Mathf.Clamp(pitch, 0.01f, 10f);
+            return Mathf.Clamp(pitch, 0.01f, 3f);
         }
-#endif
 
+        private static float ClampRpmForPairPitchMain(
+            float clampedRpm, float pairLoRef, float pairHiRef, float stretch)
+        {
+            float minRef = Mathf.Min(pairLoRef, pairHiRef);
+            float maxRef = Mathf.Max(pairLoRef, pairHiRef);
+            minRef = Mathf.Max(1f, minRef);
+            maxRef = Mathf.Max(minRef, maxRef);
+            float s = stretch > 1f ? stretch : 1f;
+            return Mathf.Clamp(clampedRpm, minRef / s, maxRef * s);
+        }
+
+        /// <summary>Neighbour-pair hold and hysteresis (WebGL; keep in sync with Burst EvaluateBankInJob).</summary>
         private void FindStableNeighbourPair(List<RuntimeLayer> bank, float clampedRpm, ref BankBlendState state, out int lo, out int hi)
         {
             int count = bank.Count;
-            if (count == 1) { lo = hi = 0; return; }
-
-            FindImmediateNeighbourPair(bank, clampedRpm, out int immLo, out int immHi);
-
-            if (!state.initialized) { state.initialized = true; state.lowIndex = immLo; state.highIndex = immHi; state.holdUntilTime = 0f; lo = immLo; hi = immHi; return; }
-
-            bool sameAsCurrent = immLo == state.lowIndex && immHi == state.highIndex;
-            if (sameAsCurrent) { lo = state.lowIndex; hi = state.highIndex; return; }
-
-            float currentTime = Time.time;
-            if (currentTime < state.holdUntilTime)
+            if (count <= 0) { lo = hi = 0; return; }
+            if (count == 1)
             {
-                if (enablePairSelectorDiagnostics) _pairDiagAccHoldBlocked++;   // shared counter; fine for WebGL single-instance
-                lo = state.lowIndex; hi = state.highIndex; return;
-            }
-
-            bool rpmPassedMarginLow = clampedRpm < bank[state.lowIndex].referenceRpm - pairHysteresisRpm;
-            bool rpmPassedMarginHigh = clampedRpm > bank[state.highIndex].referenceRpm + pairHysteresisRpm;
-            if (!rpmPassedMarginLow && !rpmPassedMarginHigh)
-            {
-                if (enablePairSelectorDiagnostics) _pairDiagAccHystBlocked++;
-                lo = state.lowIndex; hi = state.highIndex; return;
-            }
-
-            float cycleFrequency = Mathf.Max(0.1f, smoothedRpm / 60f * combustionEventsPerRev);
-            float rawHold = pairHoldCycles / cycleFrequency;
-            float ftWeb = Time.fixedDeltaTime > 0.00001f ? Time.fixedDeltaTime : 0.02f;
-            float holdDuration = Mathf.Ceil(rawHold / ftWeb) * ftWeb; // tick-quantized
-
-            if (enablePairSelectorDiagnostics)
-            {
-                int holdTicks = Mathf.RoundToInt(holdDuration / ftWeb);
-                if (Time.time >= _pairDiagLogTime + 1f)
+                lo = hi = 0;
+                if (!state.initialized)
                 {
-                    _pairDiagLogTime = Time.time;
-                    Debug.Log(
-                        $"[VNS PairDiag WebGL | {name}] RPM={clampedRpm:0} " +
-                        $"combustionEventsPerRev={combustionEventsPerRev:0.0} " +
-                        $"rawHold={rawHold * 1000f:0.00}ms effHold={holdDuration * 1000f:0.00}ms ({holdTicks} ticks) " +
-                        $"fixedDt={ftWeb * 1000f:0.00}ms " +
-                        $"pairHysteresisRpm={pairHysteresisRpm:0} " +
-                        $"switches/s={_pairDiagAccSwitches} " +
-                        $"hystBlocked/s={_pairDiagAccHystBlocked} " +
-                        $"holdBlocked/s={_pairDiagAccHoldBlocked}",
-                        this);
-                    _pairDiagAccSwitches = 0;
-                    _pairDiagAccHystBlocked = 0;
-                    _pairDiagAccHoldBlocked = 0;
+                    state.initialized = true;
+                    state.lowIndex = 0;
+                    state.highIndex = 0;
+                    state.holdUntilTime = Time.time + QuantizeHoldToTicksMain();
                 }
-                _pairDiagAccSwitches++;
+                return;
             }
 
-            state.lowIndex = immLo;
-            state.highIndex = immHi;
-            state.holdUntilTime = currentTime + holdDuration;
-            lo = state.lowIndex;
-            hi = state.highIndex;
+            FindImmediateNeighbourPair(bank, clampedRpm, out int idealLo, out int idealHi);
+
+            int curLo = state.lowIndex < count ? state.lowIndex : count - 1;
+            int curHi = state.highIndex < count ? state.highIndex : count - 1;
+            float stretch = Mathf.Max(1f, maxPitchRatioBeyondPair);
+            float currentTime = Time.time;
+
+            if (!state.initialized)
+            {
+                lo = idealLo;
+                hi = idealHi;
+                state.initialized = true;
+                state.lowIndex = lo;
+                state.highIndex = hi;
+                state.holdUntilTime = currentTime + QuantizeHoldToTicksMain();
+                return;
+            }
+
+            bool wantsSwitch = idealLo != curLo || idealHi != curHi;
+            bool inHold = currentTime < state.holdUntilTime;
+            int stepGap = Mathf.Max(Mathf.Abs(idealHi - curHi), Mathf.Abs(idealLo - curLo));
+            bool multiStepBehind = stepGap > 1;
+
+            bool stretchEscape = false;
+            if (inHold || wantsSwitch)
+            {
+                float pairMin = Mathf.Min(bank[curLo].referenceRpm, bank[curHi].referenceRpm);
+                float pairMax = Mathf.Max(bank[curLo].referenceRpm, bank[curHi].referenceRpm);
+                stretchEscape =
+                    clampedRpm > pairMax * stretch ||
+                    clampedRpm < pairMin / stretch;
+            }
+
+            bool forceIdeal = multiStepBehind || stretchEscape;
+
+            if (inHold && !forceIdeal)
+            {
+                if (enablePairSelectorDiagnostics) _pairDiagAccHoldBlocked++;
+                lo = curLo;
+                hi = curHi;
+                return;
+            }
+
+            bool passesHysteresis = false;
+            if (wantsSwitch)
+            {
+                if (idealHi > curHi)
+                    passesHysteresis = clampedRpm > bank[curHi].referenceRpm + pairHysteresisRpm;
+                else if (idealHi < curHi)
+                    passesHysteresis = clampedRpm < bank[curLo].referenceRpm - pairHysteresisRpm;
+                else
+                    passesHysteresis = true;
+            }
+
+            if (wantsSwitch && (passesHysteresis || forceIdeal))
+            {
+                float holdDuration = QuantizeHoldToTicksMain();
+                if (enablePairSelectorDiagnostics)
+                {
+                    float ftWeb = Time.fixedDeltaTime > 0.00001f ? Time.fixedDeltaTime : 0.02f;
+                    float rawHold = (combustionEventsPerRev > 0f && smoothedRpm > 0f)
+                        ? pairHoldCycles / (smoothedRpm / 60f * combustionEventsPerRev)
+                        : 0f;
+                    int holdTicks = Mathf.RoundToInt(holdDuration / ftWeb);
+                    if (Time.time >= _pairDiagLogTime + 1f)
+                    {
+                        _pairDiagLogTime = Time.time;
+                        Debug.Log(
+                            $"[VNS PairDiag WebGL | {name}] RPM={clampedRpm:0} " +
+                            $"combustionEventsPerRev={combustionEventsPerRev:0.0} " +
+                            $"rawHold={rawHold * 1000f:0.00}ms effHold={holdDuration * 1000f:0.00}ms ({holdTicks} ticks) " +
+                            $"fixedDt={ftWeb * 1000f:0.00}ms " +
+                            $"pairHysteresisRpm={pairHysteresisRpm:0} " +
+                            $"switches/s={_pairDiagAccSwitches} " +
+                            $"hystBlocked/s={_pairDiagAccHystBlocked} " +
+                            $"holdBlocked/s={_pairDiagAccHoldBlocked}",
+                            this);
+                        _pairDiagAccSwitches = 0;
+                        _pairDiagAccHystBlocked = 0;
+                        _pairDiagAccHoldBlocked = 0;
+                    }
+                    _pairDiagAccSwitches++;
+                }
+
+                state.lowIndex = idealLo;
+                state.highIndex = idealHi;
+                state.holdUntilTime = currentTime + holdDuration;
+                lo = idealLo;
+                hi = idealHi;
+            }
+            else
+            {
+                if (enablePairSelectorDiagnostics && wantsSwitch) _pairDiagAccHystBlocked++;
+                lo = curLo;
+                hi = curHi;
+            }
+        }
+
+        private float QuantizeHoldToTicksMain()
+        {
+            float ft = Time.fixedDeltaTime > 0.00001f ? Time.fixedDeltaTime : 0.02f;
+            float rawHold = (combustionEventsPerRev > 0f && smoothedRpm > 0f)
+                ? pairHoldCycles / (smoothedRpm / 60f * combustionEventsPerRev)
+                : 0f;
+            return Mathf.Ceil(rawHold / ft) * ft;
         }
 
         private void FindImmediateNeighbourPair(List<RuntimeLayer> bank, float clampedRpm, out int lo, out int hi)
@@ -2210,6 +2408,7 @@ namespace AroundTheGroundSimulator
                 if (d < bestDist) { bestDist = d; lo = hi = i; }
             }
         }
+#endif
 
         private void ApplyTargetsToBank(List<RuntimeLayer> bank, float[] targetVolumes, float[] targetPitches, float deltaTime)
         {
@@ -2274,18 +2473,28 @@ namespace AroundTheGroundSimulator
                 float activity = Mathf.Max(layer.source.volume, tv);
                 if (activity < 0.0005f) continue;
 
-                layer.lowPass.cutoffFrequency = Mathf.MoveTowards(layer.lowPass.cutoffFrequency, lowPassTarget, slew2000);
-                layer.lowPass.lowpassResonanceQ = Mathf.MoveTowards(layer.lowPass.lowpassResonanceQ, lowPassQ, slewBase);
-                layer.highPass.cutoffFrequency = Mathf.MoveTowards(layer.highPass.cutoffFrequency, highPassTarget, slew180);
-                layer.highPass.highpassResonanceQ = Mathf.MoveTowards(layer.highPass.highpassResonanceQ, highPassQ, slewBase);
-                layer.distortion.distortionLevel = Mathf.MoveTowards(layer.distortion.distortionLevel, distortionTarget, slewBase);
-                layer.chorus.dryMix = Mathf.MoveTowards(layer.chorus.dryMix, chorusDry, slewBase);
-                layer.chorus.wetMix1 = Mathf.MoveTowards(layer.chorus.wetMix1, chorusWet * 0.6f, slewBase);
-                layer.chorus.wetMix2 = Mathf.MoveTowards(layer.chorus.wetMix2, chorusWet * 0.3f, slewBase);
-                layer.chorus.wetMix3 = Mathf.MoveTowards(layer.chorus.wetMix3, chorusWet * 0.1f, slewBase);
-                layer.chorus.depth = Mathf.MoveTowards(layer.chorus.depth, chorusDepth, slewBase);
-                layer.chorus.rate = Mathf.MoveTowards(layer.chorus.rate, chorusRate, slewBase);
-                if (layer.reverb != null)
+                if (layer.lowPass != null && layer.lowPass.enabled)
+                {
+                    layer.lowPass.cutoffFrequency = Mathf.MoveTowards(layer.lowPass.cutoffFrequency, lowPassTarget, slew2000);
+                    layer.lowPass.lowpassResonanceQ = Mathf.MoveTowards(layer.lowPass.lowpassResonanceQ, lowPassQ, slewBase);
+                }
+                if (layer.highPass != null && layer.highPass.enabled)
+                {
+                    layer.highPass.cutoffFrequency = Mathf.MoveTowards(layer.highPass.cutoffFrequency, highPassTarget, slew180);
+                    layer.highPass.highpassResonanceQ = Mathf.MoveTowards(layer.highPass.highpassResonanceQ, highPassQ, slewBase);
+                }
+                if (layer.distortion != null && layer.distortion.enabled)
+                    layer.distortion.distortionLevel = Mathf.MoveTowards(layer.distortion.distortionLevel, distortionTarget, slewBase);
+                if (layer.chorus != null && layer.chorus.enabled)
+                {
+                    layer.chorus.dryMix = Mathf.MoveTowards(layer.chorus.dryMix, chorusDry, slewBase);
+                    layer.chorus.wetMix1 = Mathf.MoveTowards(layer.chorus.wetMix1, chorusWet * 0.6f, slewBase);
+                    layer.chorus.wetMix2 = Mathf.MoveTowards(layer.chorus.wetMix2, chorusWet * 0.3f, slewBase);
+                    layer.chorus.wetMix3 = Mathf.MoveTowards(layer.chorus.wetMix3, chorusWet * 0.1f, slewBase);
+                    layer.chorus.depth = Mathf.MoveTowards(layer.chorus.depth, chorusDepth, slewBase);
+                    layer.chorus.rate = Mathf.MoveTowards(layer.chorus.rate, chorusRate, slewBase);
+                }
+                if (layer.reverb != null && layer.reverb.enabled)
                 {
                     layer.reverb.reverbLevel = Mathf.MoveTowards(layer.reverb.reverbLevel, reverbLevel, slew2500);
                     layer.reverb.decayTime = Mathf.MoveTowards(layer.reverb.decayTime, reverbDecay, slewBase);
@@ -2355,7 +2564,7 @@ namespace AroundTheGroundSimulator
             }
 
             int clipIndex = UnityEngine.Random.Range(0, burbleSounds.Length);
-            freeSource.Stop();           // flush any stale buffer before reassigning clip
+            freeSource.Stop();
             freeSource.clip = burbleSounds[clipIndex];
             freeSource.volume = burbleVolume;
             freeSource.pitch = 1f + UnityEngine.Random.Range(-burbleRandomPitchVariation, burbleRandomPitchVariation);
@@ -2369,12 +2578,10 @@ namespace AroundTheGroundSimulator
         {
             if (dctShiftBurbleSource == null) return;
 
-            // Advance the fade envelope every tick while playing.
             UpdateDctShiftFade();
 
             if (!dctShiftBurbleSource.isPlaying) return;
 
-            // Stop after max duration expires  --  fade out first, then Stop() at ~0 volume.
             if (Time.time >= dctShiftBurbleStopTime)
             {
                 if (dctShiftFadeState != DctShiftFadeState.FadeOut)
@@ -2382,8 +2589,7 @@ namespace AroundTheGroundSimulator
                 return;
             }
 
-            // Cut off when driver steps on the gas, but only after a short
-            // grace period so transmission-engagement noise doesn't kill it.
+            // Short grace period so gear-engagement noise does not kill the burble immediately.
             float burbleElapsed = Time.time - (dctShiftBurbleStopTime - dctShiftBurbleMaxDuration);
             if (burbleElapsed > 0.03f)
             {
@@ -2425,123 +2631,7 @@ namespace AroundTheGroundSimulator
 
         private void ApplyPostEffectsToDctShiftSource(float normalizedRpm, float deltaTime)
         {
-            if (dctShiftBurbleSource == null || !dctShiftBurbleSource.isPlaying) return;
-            if (dctShiftBurbleLowPass == null) return;
-
-            // Take the min (most restrictive) of the intensity LPF and the distance/muffling LPF
-            // so a distance path can never reopen the filter while the overlay is playing.
-            float lpCurveValue = Mathf.Clamp(SampleBakedCurve(bakedLowPassCurve, smoothedLoad), 500f, 22000f);
-            float lpMix = Mathf.Clamp01(Mathf.Max(lowPassIntensity, lowPassStrength + mufflingIntensity));
-            float distanceLpf = Mathf.Lerp(22000f, lpCurveValue, lpMix);
-            float intensityLpf = Mathf.Lerp(8000f, 3000f, normalizedRpm);
-            float lowPassTarget = Mathf.Min(distanceLpf, intensityLpf);
-            float hpAmount = Mathf.Clamp01(normalizedRpm * normalizedRpm * highPassStrength);
-            float highPassTarget = Mathf.Lerp(10f, 1800f, hpAmount);
-            float resShape = Mathf.Sin(normalizedRpm * Mathf.PI);
-            float lowPassQ = Mathf.Lerp(1f, 8f, Mathf.Clamp01(resShape * resonanceStrength));
-            float highPassQ = Mathf.Lerp(1f, 2.2f, hpAmount);
-
-            float slew2000 = filterLPFSlewHz * deltaTime;
-            float slew180 = filterHPFSlewHz * deltaTime;
-            float slewBase = filterParamSlewRate * deltaTime;
-
-            //dctShiftBurbleLowPass.cutoffFrequency = Mathf.MoveTowards(dctShiftBurbleLowPass.cutoffFrequency, lowPassTarget, slew2000);
-            //dctShiftBurbleLowPass.lowpassResonanceQ = Mathf.MoveTowards(dctShiftBurbleLowPass.lowpassResonanceQ, lowPassQ, slewBase);
-            //dctShiftBurbleHighPass.cutoffFrequency = Mathf.MoveTowards(dctShiftBurbleHighPass.cutoffFrequency, highPassTarget, slew180);
-            //dctShiftBurbleHighPass.highpassResonanceQ = Mathf.MoveTowards(dctShiftBurbleHighPass.highpassResonanceQ, highPassQ, slewBase);
-
-            if (dctShiftBurbleDistortion != null)
-            {
-                dctShiftBurbleDistortion.distortionLevel = 0f;
-                dctShiftBurbleDistortion.enabled = false;
-            }
-
-            if (dctShiftBurbleChorus != null)
-            {
-                dctShiftBurbleChorus.enabled = false;
-                dctShiftBurbleChorus.dryMix = 1f;
-                dctShiftBurbleChorus.wetMix1 = 0f;
-                dctShiftBurbleChorus.wetMix2 = 0f;
-                dctShiftBurbleChorus.wetMix3 = 0f;
-                dctShiftBurbleChorus.depth = 0f;
-            }
         }
-
-        private void UpdateLugging(float deltaTime, float clampedRpm)
-        {
-            if (!enableEngineLugging || luggingSounds == null || luggingSounds.Length == 0)
-            {
-                FadeOutAllLugging(deltaTime);
-                return;
-            }
-
-            bool rpmInRange = clampedRpm >= luggingMinRPMThreshold && clampedRpm <= luggingMaxRPMThreshold;
-            bool loadSufficient = smoothedLoad >= luggingMinLoadThreshold;
-            bool shouldLug = rpmInRange && loadSufficient;
-
-            if (shouldLug)
-            {
-                if (activeLuggingIndex < 0) EnsureActiveLuggingSource();
-                currentLuggingVolume = Mathf.Min(1f, currentLuggingVolume + luggingFadeInSpeed * deltaTime);
-            }
-            else
-            {
-                currentLuggingVolume = Mathf.Max(0f, currentLuggingVolume - luggingFadeOutSpeed * deltaTime);
-                if (currentLuggingVolume <= 0f) activeLuggingIndex = -1;
-            }
-
-            for (int i = 0; i < luggingAudioSources.Count; i++)
-            {
-                AudioSource src = luggingAudioSources[i];
-                if (i == activeLuggingIndex)
-                {
-                    src.volume = currentLuggingVolume * luggingVolume;
-                    src.pitch = luggingBasePitch + currentLuggingPitchRandom;
-                    if (!src.isPlaying) src.Play();
-                }
-                else
-                {
-                    src.volume = Mathf.Max(0f, src.volume - luggingFadeOutSpeed * deltaTime);
-                    if (src.volume <= 0f && src.isPlaying) src.Stop();
-                }
-            }
-        }
-
-        private void EnsureActiveLuggingSource()
-        {
-            if (luggingSounds == null || luggingSounds.Length == 0) return;
-            int clipIndex = UnityEngine.Random.Range(0, luggingSounds.Length);
-            int sourceIndex = 0;
-            float lowestVol = float.MaxValue;
-            for (int i = 0; i < luggingAudioSources.Count; i++)
-            {
-                if (!luggingAudioSources[i].isPlaying) { sourceIndex = i; break; }
-                if (luggingAudioSources[i].volume < lowestVol) { lowestVol = luggingAudioSources[i].volume; sourceIndex = i; }
-            }
-            luggingAudioSources[sourceIndex].clip = luggingSounds[clipIndex];
-            luggingAudioSources[sourceIndex].volume = 0f;
-            luggingAudioSources[sourceIndex].pitch = luggingBasePitch;
-            luggingAudioSources[sourceIndex].Play();
-            activeLuggingIndex = sourceIndex;
-            currentLuggingPitchRandom = UnityEngine.Random.Range(-luggingRandomPitchVariation, luggingRandomPitchVariation);
-        }
-
-        private void FadeOutAllLugging(float deltaTime)
-        {
-            if (luggingAudioSources == null) return;
-            for (int i = 0; i < luggingAudioSources.Count; i++)
-            {
-                AudioSource src = luggingAudioSources[i];
-                src.volume = Mathf.Max(0f, src.volume - luggingFadeOutSpeed * deltaTime);
-                if (src.volume <= 0f && src.isPlaying) src.Stop();
-            }
-            activeLuggingIndex = -1;
-            currentLuggingVolume = 0f;
-        }
-
-        /// <summary>Throttle-body effects are now event-driven via OnThrottleTipIn / OnThrottleTipOut.
-        /// This method is retained as a no-op to keep call-sites unchanged.</summary>
-        private void UpdateThrottleBodyEffects(float clampedRpm, float normalizedRpm) { }
 
         /// <summary>
         /// Fires one-shot redline exhaust clips in a user-defined loop while the
@@ -2573,6 +2663,7 @@ namespace AroundTheGroundSimulator
 
         private AudioSource GetFreeRedlineSource()
         {
+            if (redlineAudioSources.Count == 0) return null;
             for (int i = 0; i < redlineAudioSources.Count; i++)
                 if (!redlineAudioSources[i].isPlaying) return redlineAudioSources[i];
             AudioSource quietest = redlineAudioSources[0];
@@ -2583,6 +2674,7 @@ namespace AroundTheGroundSimulator
 
         private AudioSource GetFreeThrottleBodySource(List<AudioSource> pool)
         {
+            if (pool == null || pool.Count == 0) return null;
             for (int i = 0; i < pool.Count; i++)
                 if (!pool[i].isPlaying) return pool[i];
             AudioSource quietest = pool[0];
@@ -2593,6 +2685,7 @@ namespace AroundTheGroundSimulator
 
         private AudioSource GetFreeBurbleSource()
         {
+            if (burbleAudioSources.Count == 0) return null;
             for (int i = 0; i < burbleAudioSources.Count; i++)
                 if (!burbleAudioSources[i].isPlaying) return burbleAudioSources[i];
             AudioSource quietest = burbleAudioSources[0];
@@ -2615,7 +2708,6 @@ namespace AroundTheGroundSimulator
             }
             dctShiftFadeState = DctShiftFadeState.Idle;
             dctShiftBurbleStopTime = 0f;
-            FadeOutAllLugging(deltaTime);
         }
 
         private void UpdateDiagnostics(float deltaTime)
@@ -2657,12 +2749,7 @@ namespace AroundTheGroundSimulator
                 SafeDestroy(dctShiftBurbleSource.gameObject);
                 dctShiftBurbleSource = null;
             }
-            if (luggingAudioSources != null)
-            {
-                for (int i = 0; i < luggingAudioSources.Count; i++)
-                    if (luggingAudioSources[i] != null) SafeDestroy(luggingAudioSources[i].gameObject);
-                luggingAudioSources.Clear();
-            }
+            ClearDctShiftBurbleRefs();
         }
 
         private void DestroyBank(List<RuntimeLayer> bank)

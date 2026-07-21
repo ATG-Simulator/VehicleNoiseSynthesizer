@@ -38,12 +38,12 @@ RenderSettings:
   m_ReflectionIntensity: 1
   m_CustomReflection: {fileID: 0}
   m_Sun: {fileID: 0}
-  m_IndirectSpecularColor: {r: 0.23395246, g: 0.33546352, b: 0.4233486, a: 1}
   m_UseRadianceAmbientProbe: 0
 --- !u!157 &3
 LightmapSettings:
   m_ObjectHideFlags: 0
-  serializedVersion: 12
+  serializedVersion: 13
+  m_BakeOnSceneLoad: 0
   m_GISettings:
     serializedVersion: 2
     m_BounceScale: 1
@@ -916,8 +916,12 @@ Light:
   m_BoundingSphereOverride: {x: 0, y: 0, z: 0, w: 0}
   m_UseBoundingSphereOverride: 0
   m_UseViewFrustumForShadowCasterCull: 1
+  m_ForceVisible: 0
   m_ShadowRadius: 0
   m_ShadowAngle: 0
+  m_LightUnit: 1
+  m_LuxAtDistance: 1
+  m_EnableSpotReflector: 1
 --- !u!4 &442696816
 Transform:
   m_ObjectHideFlags: 0
@@ -1008,6 +1012,7 @@ MeshRenderer:
   m_RayTraceProcedural: 0
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -1667,12 +1672,12 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   enableOscillation: 1
+  disableNwhEngineRunningAudio: 1
   pitchOsc:
     oscillationSpeed: 4.5
     oscillationDepth: 0.24
     rpmIncreaseThreshold: 150
     rpmDecreaseThreshold: 80
-    revLimiterThreshold: 50
     dampingFactor: 7
     loadInfluence: 0.3
     effectDelay: 0.05
@@ -1696,8 +1701,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   debug: 0
   enablePairSelectorDiagnostics: 0
-  debugrpm: 7327
-  debugload: 1
+  debugrpm: 1000
+  debugload: 0.5
   enableDiagnosticLogger: 0
   enableBurbleDiagnostics: 0
   shiftPitchOsc: 1.9687425e-19
@@ -1783,7 +1788,8 @@ MonoBehaviour:
   rpmResponseTime: 0.035
   loadResponseTime: 0.013
   pairHysteresisRpm: 120
-  pairHoldCycles: 16
+  pairHoldCycles: 1
+  maxPitchRatioBeyondPair: 1.2
   cylinderCount: 8
   combustionCycleMode: 0
   distortionCurve:
@@ -1872,16 +1878,6 @@ MonoBehaviour:
   dctShiftBurbleMaxDuration: 0.33
   dctShiftBurbleBasePitch: 1
   dctShiftBurblePitchVariation: 0.05
-  enableEngineLugging: 0
-  luggingSounds: []
-  luggingVolume: 0.8
-  luggingMinRPMThreshold: 800
-  luggingMaxRPMThreshold: 2000
-  luggingMinLoadThreshold: 0.7
-  luggingFadeInSpeed: 5
-  luggingFadeOutSpeed: 3
-  luggingBasePitch: 0.9
-  luggingRandomPitchVariation: 0.05
   enableThrottleBody: 1
   intakeRoarSounds:
   - {fileID: 8300000, guid: 780be253811e288428bfef1be3da5aa9, type: 3}
@@ -1890,8 +1886,6 @@ MonoBehaviour:
   intakeRoarVolume: 1
   throttleFlutterVolume: 0.8
   throttleBodyPitchVariation: 0.15
-  intakeRoarLoadDeltaThreshold: 0.333
-  throttleFlutterLoadDeltaThreshold: 0.217
   throttleBodyCooldown: 0.333
   enableRedlineEffect: 0
   redlineSounds:
@@ -2145,6 +2139,7 @@ Terrain:
   m_AllowAutoConnect: 1
   m_EnableHeightmapRayTracing: 1
   m_EnableTreesAndDetailsRayTracing: 0
+  m_EnableHeightmapLODFrustumCulling: 1
   m_TreeMotionVectorModeOverride: 3
 --- !u!114 &1602857924 stripped
 MonoBehaviour:
@@ -2552,14 +2547,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   debug: 0
   enablePairSelectorDiagnostics: 0
-  debugrpm: 7327
-  debugload: 1
+  debugrpm: 800
+  debugload: 0.5
   enableDiagnosticLogger: 0
   enableBurbleDiagnostics: 0
-  shiftPitchOsc: 1.9687425e-19
+  shiftPitchOsc: -0
   masterVolume: 0.5
   loadVolumeAccChangerFactor: 0.5
-  loadVolumeDccChangerFactor: 0.5
+  loadVolumeDccChangerFactor: 0
   loadVolumeChangerMinValue: 0.1
   autoBlip: 1
   audioSourceTemplate: {fileID: 1598001561734144962}
@@ -2621,7 +2616,8 @@ MonoBehaviour:
   rpmResponseTime: 0.035
   loadResponseTime: 0.013
   pairHysteresisRpm: 120
-  pairHoldCycles: 16
+  pairHoldCycles: 1
+  maxPitchRatioBeyondPair: 1.2
   cylinderCount: 8
   combustionCycleMode: 0
   distortionCurve:
@@ -2710,16 +2706,6 @@ MonoBehaviour:
   dctShiftBurbleMaxDuration: 0.33
   dctShiftBurbleBasePitch: 1
   dctShiftBurblePitchVariation: 0.05
-  enableEngineLugging: 0
-  luggingSounds: []
-  luggingVolume: 0.8
-  luggingMinRPMThreshold: 800
-  luggingMaxRPMThreshold: 2000
-  luggingMinLoadThreshold: 0.7
-  luggingFadeInSpeed: 5
-  luggingFadeOutSpeed: 3
-  luggingBasePitch: 0.9
-  luggingRandomPitchVariation: 0.05
   enableThrottleBody: 0
   intakeRoarSounds:
   - {fileID: 8300000, guid: 780be253811e288428bfef1be3da5aa9, type: 3}
@@ -2728,8 +2714,6 @@ MonoBehaviour:
   intakeRoarVolume: 0.4
   throttleFlutterVolume: 0.2
   throttleBodyPitchVariation: 0.15
-  intakeRoarLoadDeltaThreshold: 0.333
-  throttleFlutterLoadDeltaThreshold: 0.217
   throttleBodyCooldown: 0.333
   enableRedlineEffect: 1
   redlineSounds:
@@ -2801,7 +2785,7 @@ MonoBehaviour:
   deceleratingSounds: []
   idleVolume: 0.33
   maxVolumeAcc: 1
-  maxVolumeDcc: 1
+  maxVolumeDcc: 0.079
   acPitchTrim: 0
   dcPitchTrim: 0
   maximumTheoricalRPM: 9500
@@ -2814,8 +2798,8 @@ MonoBehaviour:
   reverbStrength: 0.584
   useSharedMixerReverb: 0
   reverbMixerParamName: ReverbAmount
-  loadCrossoverPoint: 0
-  loadBlendWidth: 0.01
+  loadCrossoverPoint: 0.007
+  loadBlendWidth: 0.02
   filterLPFSlewHz: 800
   filterHPFSlewHz: 180
   filterReverbSlewDbS: 2500
@@ -2983,6 +2967,7 @@ MonoBehaviour:
   onCollision:
     m_PersistentCalls:
       m_Calls: []
+  lodCamera: {fileID: 0}
   brakes:
     brakeOffThrottleIntensity: 0
     brakeWhileDisabled: 1
@@ -3770,7 +3755,6 @@ MonoBehaviour:
   wheelbase: -1
   realtimeSinceStartup: 0
   runAutomaticValidation: 1
-  lodCamera: {fileID: 0}
 --- !u!64 &2148640501304228408
 MeshCollider:
   m_ObjectHideFlags: 0
@@ -3971,6 +3955,7 @@ MeshRenderer:
   m_RayTraceProcedural: 0
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -4074,6 +4059,7 @@ MeshRenderer:
   m_RayTraceProcedural: 0
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -4141,6 +4127,7 @@ MeshRenderer:
   m_RayTraceProcedural: 0
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -4505,8 +4492,12 @@ Light:
   m_BoundingSphereOverride: {x: 0, y: 0, z: 0, w: 0}
   m_UseBoundingSphereOverride: 0
   m_UseViewFrustumForShadowCasterCull: 1
+  m_ForceVisible: 0
   m_ShadowRadius: 0
   m_ShadowAngle: 0
+  m_LightUnit: 1
+  m_LuxAtDistance: 1
+  m_EnableSpotReflector: 1
 --- !u!4 &4144253148652958327
 Transform:
   m_ObjectHideFlags: 0
@@ -4574,6 +4565,7 @@ MeshRenderer:
   m_RayTraceProcedural: 0
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -4626,6 +4618,7 @@ MeshRenderer:
   m_RayTraceProcedural: 0
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -4765,6 +4758,7 @@ MeshRenderer:
   m_RayTraceProcedural: 0
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -4840,6 +4834,7 @@ MeshRenderer:
   m_RayTraceProcedural: 0
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -4925,6 +4920,7 @@ MeshRenderer:
   m_RayTraceProcedural: 0
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -5010,6 +5006,7 @@ MeshRenderer:
   m_RayTraceProcedural: 0
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -5128,6 +5125,7 @@ MeshRenderer:
   m_RayTraceProcedural: 0
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -5244,6 +5242,7 @@ MeshRenderer:
   m_RayTraceProcedural: 0
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -5441,8 +5440,12 @@ Light:
   m_BoundingSphereOverride: {x: 0, y: 0, z: 0, w: 0}
   m_UseBoundingSphereOverride: 0
   m_UseViewFrustumForShadowCasterCull: 1
+  m_ForceVisible: 0
   m_ShadowRadius: 0
   m_ShadowAngle: 0
+  m_LightUnit: 1
+  m_LuxAtDistance: 1
+  m_EnableSpotReflector: 1
 --- !u!4 &4144253149083008683
 Transform:
   m_ObjectHideFlags: 0
@@ -5510,6 +5513,7 @@ MeshRenderer:
   m_RayTraceProcedural: 0
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -5602,8 +5606,12 @@ Light:
   m_BoundingSphereOverride: {x: 0, y: 0, z: 0, w: 0}
   m_UseBoundingSphereOverride: 0
   m_UseViewFrustumForShadowCasterCull: 1
+  m_ForceVisible: 0
   m_ShadowRadius: 0
   m_ShadowAngle: 0
+  m_LightUnit: 1
+  m_LuxAtDistance: 1
+  m_EnableSpotReflector: 1
 --- !u!4 &4144253149190211299
 Transform:
   m_ObjectHideFlags: 0
@@ -5793,6 +5801,7 @@ MeshRenderer:
   m_RayTraceProcedural: 0
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -5870,6 +5879,7 @@ MeshRenderer:
   m_RayTraceProcedural: 0
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -5988,6 +5998,7 @@ MeshRenderer:
   m_RayTraceProcedural: 0
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -6048,6 +6059,7 @@ MeshRenderer:
   m_RayTraceProcedural: 0
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -6148,6 +6160,7 @@ MeshRenderer:
   m_RayTraceProcedural: 0
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -6330,6 +6343,7 @@ MeshRenderer:
   m_RayTraceProcedural: 0
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -6434,6 +6448,7 @@ MeshRenderer:
   m_RayTraceProcedural: 0
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -6533,8 +6548,12 @@ Light:
   m_BoundingSphereOverride: {x: 0, y: 0, z: 0, w: 0}
   m_UseBoundingSphereOverride: 0
   m_UseViewFrustumForShadowCasterCull: 1
+  m_ForceVisible: 0
   m_ShadowRadius: 0
   m_ShadowAngle: 0
+  m_LightUnit: 1
+  m_LuxAtDistance: 1
+  m_EnableSpotReflector: 1
 --- !u!1 &4144253149565948271
 GameObject:
   m_ObjectHideFlags: 0
@@ -6571,6 +6590,7 @@ MeshRenderer:
   m_RayTraceProcedural: 0
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -6918,6 +6938,7 @@ MeshRenderer:
   m_RayTraceProcedural: 0
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -6963,6 +6984,7 @@ MeshRenderer:
   m_RayTraceProcedural: 0
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -7056,6 +7078,7 @@ MeshRenderer:
   m_RayTraceProcedural: 0
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -7141,6 +7164,7 @@ MeshRenderer:
   m_RayTraceProcedural: 0
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -7218,6 +7242,7 @@ MeshRenderer:
   m_RayTraceProcedural: 0
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -7326,6 +7351,7 @@ MeshRenderer:
   m_RayTraceProcedural: 0
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -7396,6 +7422,7 @@ MeshRenderer:
   m_RayTraceProcedural: 0
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -7514,6 +7541,7 @@ MeshRenderer:
   m_RayTraceProcedural: 0
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -7596,6 +7624,7 @@ MeshRenderer:
   m_RayTraceProcedural: 0
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -7962,8 +7991,12 @@ Light:
   m_BoundingSphereOverride: {x: 0, y: 0, z: 0, w: 0}
   m_UseBoundingSphereOverride: 0
   m_UseViewFrustumForShadowCasterCull: 1
+  m_ForceVisible: 0
   m_ShadowRadius: 0
   m_ShadowAngle: 0
+  m_LightUnit: 1
+  m_LuxAtDistance: 1
+  m_EnableSpotReflector: 1
 --- !u!4 &4144253150286992218
 Transform:
   m_ObjectHideFlags: 0
@@ -8038,6 +8071,7 @@ MeshRenderer:
   m_RayTraceProcedural: 0
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -8141,6 +8175,7 @@ MeshRenderer:
   m_RayTraceProcedural: 0
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -8185,6 +8220,7 @@ MeshRenderer:
   m_RayTraceProcedural: 0
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -10137,6 +10173,7 @@ ParticleSystemRenderer:
   m_RayTraceProcedural: 0
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -14941,12 +14978,12 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   enableOscillation: 1
+  disableNwhEngineRunningAudio: 1
   pitchOsc:
     oscillationSpeed: 4.5
     oscillationDepth: 0.24
     rpmIncreaseThreshold: 150
     rpmDecreaseThreshold: 80
-    revLimiterThreshold: 50
     dampingFactor: 7
     loadInfluence: 0.3
     effectDelay: 0.05
@@ -15082,6 +15119,7 @@ ParticleSystemRenderer:
   m_RayTraceProcedural: 0
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -20191,6 +20229,7 @@ MeshRenderer:
   m_RayTraceProcedural: 0
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -20615,6 +20654,7 @@ ParticleSystemRenderer:
   m_RayTraceProcedural: 0
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:

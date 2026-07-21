@@ -18,6 +18,9 @@ namespace AroundTheGroundSimulator
 
         public bool enableOscillation = true;
 
+        [Tooltip("When true, disables NWH's EngineRunningComponent so it does not double up with VNS engine/exhaust banks. Other NWH SFX (tires, gear, horn, …) stay as configured.")]
+        public bool disableNwhEngineRunningAudio = true;
+
         [SerializeField]
         EnginePitchOscillator pitchOsc = new EnginePitchOscillator();
 
@@ -30,13 +33,25 @@ namespace AroundTheGroundSimulator
             vp.powertrain.engine.onStart.AddListener(aG.TurnOn);
             vp.powertrain.engine.onStop.AddListener(aG.TurnOff);
 
+            // Prevent dual engine-loop audio when VNS owns continuous engine sound.
+            if (disableNwhEngineRunningAudio &&
+                vp.soundManager != null &&
+                vp.soundManager.engineRunningComponent != null &&
+                vp.soundManager.engineRunningComponent.state.isEnabled)
+            {
+                vp.soundManager.engineRunningComponent.VC_Disable(false);
+            }
+
             aG.Activate();
         }
 
         void OnDisable()
         {
-            vp.powertrain.engine.onStart.RemoveListener(aG.TurnOn);
-            vp.powertrain.engine.onStop.RemoveListener(aG.TurnOff);
+            if (vp != null && vp.powertrain != null && vp.powertrain.engine != null && aG != null)
+            {
+                vp.powertrain.engine.onStart.RemoveListener(aG.TurnOn);
+                vp.powertrain.engine.onStop.RemoveListener(aG.TurnOff);
+            }
         }
 
         private int lastGear = 0;
@@ -73,11 +88,12 @@ namespace AroundTheGroundSimulator
                 lastGear = currentGear;
             }
 
+            // FixedUpdate: use fixedDeltaTime so damping/phase match physics cadence.
             aG.shiftPitchOsc = pitchOsc.ProcessPitch(
                 aG.rpm,
                 aG.load,
                 enableOscillation,
-                Time.deltaTime
+                Time.fixedDeltaTime
             );
         }
     }
@@ -91,7 +107,6 @@ namespace AroundTheGroundSimulator
         [Header("RPM Thresholds")]
         public float rpmIncreaseThreshold = 150.0f;
         public float rpmDecreaseThreshold = 80.0f;
-        public float revLimiterThreshold = 50.0f;
 
         [Header("Response Tuning")]
         public float dampingFactor = 5.0f;
@@ -103,7 +118,8 @@ namespace AroundTheGroundSimulator
         public float harmonicFrequency = 2.0f;
         public float harmonicAmplitude = 0.3f;
         [Range(0.0f, 1.0f)]
-        public float gearChangeIntensityMultiplier = 1.5f;
+        [Tooltip("Intensity applied on gear change, capped at 1.0 for the oscillator product.")]
+        public float gearChangeIntensityMultiplier = 1.0f;
 
         [Header("Debug Information")]
         [SerializeField] private float lastRPM = 0.0f;
@@ -111,19 +127,30 @@ namespace AroundTheGroundSimulator
         [SerializeField] private float delayTimer = 0.0f;
         private float phaseOffset = 0.0f;
         private float harmonicPhase = 0.0f;
+        private bool hasLastRpm;
 
         public float ProcessPitch(float currentRPM, float engineLoad, bool enableOscillation, float deltaTime)
         {
             if (!enableOscillation)
                 return 0;
 
+            // Seed baseline so first sample does not see ΔRPM = currentRPM - 0
+            // and falsely arm a full oscillation burst at startup / engine start.
+            if (!hasLastRpm)
+            {
+                lastRPM = currentRPM;
+                hasLastRpm = true;
+                return 0f;
+            }
+
+            float dt = deltaTime > 0f ? deltaTime : Time.fixedDeltaTime;
             float rpmDelta = currentRPM - lastRPM;
             float rpmDeltaAbs = Mathf.Abs(rpmDelta);
             lastRPM = currentRPM;
 
             if (rpmDeltaAbs > (rpmDelta > 0 ? rpmIncreaseThreshold : rpmDecreaseThreshold))
             {
-                delayTimer += deltaTime;
+                delayTimer += dt;
                 if (delayTimer >= effectDelay)
                 {
                     oscillationIntensity = 1.0f;
@@ -135,29 +162,29 @@ namespace AroundTheGroundSimulator
                 delayTimer = 0.0f;
             }
 
-            bool isNearRevLimiter = rpmDeltaAbs < revLimiterThreshold;
-            float revLimiterMultiplier = isNearRevLimiter ? 1.5f : 1.0f;
-
-            if (oscillationIntensity > 0)
+            if (oscillationIntensity > 0f)
             {
-                oscillationIntensity *= Mathf.Exp(-dampingFactor * deltaTime);
+                oscillationIntensity *= Mathf.Exp(-dampingFactor * dt);
+                if (oscillationIntensity < 0.001f) oscillationIntensity = 0f;
             }
+
+            // Cap effective intensity so gear / arm events cannot over-boost pitch.
+            float intensity = Mathf.Min(1.0f, oscillationIntensity);
 
             float loadFactor = 1.0f + (engineLoad * loadInfluence);
 
             float baseSpeed = oscillationSpeed * (1.0f + (currentRPM / 1000.0f));
-            phaseOffset = UpdatePhase(phaseOffset, baseSpeed * deltaTime);
-            harmonicPhase = UpdatePhase(harmonicPhase, baseSpeed * harmonicFrequency * deltaTime);
+            phaseOffset = UpdatePhase(phaseOffset, baseSpeed * dt);
+            harmonicPhase = UpdatePhase(harmonicPhase, baseSpeed * harmonicFrequency * dt);
 
             float primaryOsc = Mathf.Sin(phaseOffset);
             float harmonicOsc = Mathf.Sin(harmonicPhase) * harmonicAmplitude;
-            float combinedOsc = (primaryOsc + harmonicOsc) / (1 + harmonicAmplitude);
+            float combinedOsc = (primaryOsc + harmonicOsc) / (1f + harmonicAmplitude);
 
             float oscillation = combinedOsc *
                               oscillationDepth *
-                              oscillationIntensity *
-                              loadFactor *
-                              revLimiterMultiplier;
+                              intensity *
+                              loadFactor;
 
             return oscillation;
         }
@@ -172,7 +199,7 @@ namespace AroundTheGroundSimulator
 
         public void OnGearChange()
         {
-            oscillationIntensity = gearChangeIntensityMultiplier;
+            oscillationIntensity = Mathf.Min(1.0f, gearChangeIntensityMultiplier);
         }
 
         public void Reset()
@@ -182,6 +209,7 @@ namespace AroundTheGroundSimulator
             phaseOffset = 0.0f;
             harmonicPhase = 0.0f;
             delayTimer = 0.0f;
+            hasLastRpm = false;
         }
     }
 }

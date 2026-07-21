@@ -225,7 +225,7 @@ MonoBehaviour:
   loadVolumeAccChangerFactor: 0.75
   loadVolumeDccChangerFactor: 0.5
   loadVolumeChangerMinValue: 0.5
-  autoBlip: 0
+  autoBlip: 1
   audioSourceTemplate: {fileID: 1014630130}
   mixer: {fileID: 243715708499536082, guid: 4a45b12b36d160c41be1eea83586fbe7, type: 2}
   mixerType: 2
@@ -359,24 +359,12 @@ MonoBehaviour:
   maxBurbleDelay: 0.2
   burbleRandomPitchVariation: 0.08
   burbleFadeRate: 40
-  enableEngineLugging: 0
-  luggingSounds: []
-  luggingVolume: 0.8
-  luggingMinRPMThreshold: 800
-  luggingMaxRPMThreshold: 2000
-  luggingMinLoadThreshold: 0.7
-  luggingFadeInSpeed: 5
-  luggingFadeOutSpeed: 3
-  luggingBasePitch: 0.9
-  luggingRandomPitchVariation: 0.05
   enableThrottleBody: 0
   intakeRoarSounds: []
   throttleFlutterSounds: []
   intakeRoarVolume: 0.6
   throttleFlutterVolume: 0.5
   throttleBodyPitchVariation: 0.05
-  intakeRoarLoadDeltaThreshold: 0.05
-  throttleFlutterLoadDeltaThreshold: 0.05
   throttleBodyCooldown: 0.08
   enableRedlineEffect: 0
   redlineSounds: []
