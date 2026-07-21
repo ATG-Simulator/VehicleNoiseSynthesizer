@@ -244,8 +244,8 @@ namespace AroundTheGroundSimulator
                 DrawFoldoutSection(ref showFilterSlew, "Filter Slew Rates", () =>
                 {
                     EditorGUILayout.HelpBox("How fast filter parameters may move per physics tick. Rarely needs changes.", MessageType.Info);
-                    EditorGUILayout.PropertyField(filterLPFSlewHzProp, new GUIContent("LPF Slew (Hz)", "Max Hz/tick the low-pass cutoff may move."));
-                    EditorGUILayout.PropertyField(filterHPFSlewHzProp, new GUIContent("HPF Slew (Hz)", "Max Hz/tick the high-pass cutoff may move."));
+                    EditorGUILayout.PropertyField(filterLPFSlewHzProp, new GUIContent("LPF Slew (Hz)", "Legacy. LPF cutoff now snaps with load each physics tick."));
+                    EditorGUILayout.PropertyField(filterHPFSlewHzProp, new GUIContent("HPF Slew (Hz)", "Legacy. HPF cutoff now snaps with load each physics tick."));
                     EditorGUILayout.PropertyField(filterReverbSlewDbSProp, new GUIContent("Reverb Slew (dB)", "Max dB/tick reverb level may move."));
                     EditorGUILayout.PropertyField(filterParamSlewRateProp, new GUIContent("Param Slew Rate", "Slew multiplier for 0–1 parameters (Q, distortion, chorus)."));
                 });

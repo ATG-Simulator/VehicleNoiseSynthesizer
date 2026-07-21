@@ -1637,7 +1637,7 @@ GameObject:
   - component: {fileID: 1228724471}
   - component: {fileID: 1228724470}
   m_Layer: 0
-  m_Name: EngSimTestObj
+  m_Name: VNS-Engine_Example
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -1705,7 +1705,7 @@ MonoBehaviour:
   debugload: 0.5
   enableDiagnosticLogger: 0
   enableBurbleDiagnostics: 0
-  shiftPitchOsc: 1.9687425e-19
+  shiftPitchOsc: -0
   masterVolume: 1
   loadVolumeAccChangerFactor: 0.5
   loadVolumeDccChangerFactor: 0.5
@@ -1782,12 +1782,12 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
-  keepBankClipsPlaying: 1
+  keepBankClipsPlaying: 0
   clipVolumeResponseTime: 0.005
   clipPitchResponseTime: 0.005
   rpmResponseTime: 0.035
   loadResponseTime: 0.013
-  pairHysteresisRpm: 120
+  pairHysteresisRpm: 230
   pairHoldCycles: 1
   maxPitchRatioBeyondPair: 1.2
   cylinderCount: 8
@@ -1825,8 +1825,8 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
-  distortionIntensity: 0.835
-  mufflingIntensity: 0.727
+  distortionIntensity: 0.2
+  mufflingIntensity: 0.9
   lowPassCurve:
     serializedVersion: 2
     m_Curve:
@@ -1851,7 +1851,7 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
-  lowPassIntensity: 0.444
+  lowPassIntensity: 0.2
   enableExhaustBurble: 0
   burbleSounds:
   - {fileID: 8300000, guid: 25c969d99d167c449beef40193a2000e, type: 3}
@@ -1962,16 +1962,16 @@ MonoBehaviour:
   dcPitchTrim: 0
   maximumTheoricalRPM: 9500
   launchMode: 0
-  lowPassStrength: 0.388
-  highPassStrength: 0.228
-  resonanceStrength: 0.447
-  distortionStrength: 0.317
-  chorusStrength: 0.333
+  lowPassStrength: 0
+  highPassStrength: 0
+  resonanceStrength: 0
+  distortionStrength: 0
+  chorusStrength: 0
   reverbStrength: 0
   useSharedMixerReverb: 0
   reverbMixerParamName: ReverbAmount
-  loadCrossoverPoint: 0
-  loadBlendWidth: 0.01
+  loadCrossoverPoint: 0.211
+  loadBlendWidth: 0.4
   filterLPFSlewHz: 800
   filterHPFSlewHz: 180
   filterReverbSlewDbS: 2500
@@ -2653,8 +2653,8 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
-  distortionIntensity: 0.835
-  mufflingIntensity: 0.727
+  distortionIntensity: 0.2
+  mufflingIntensity: 0.9
   lowPassCurve:
     serializedVersion: 2
     m_Curve:
@@ -2679,7 +2679,7 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
-  lowPassIntensity: 0.444
+  lowPassIntensity: 0.2
   enableExhaustBurble: 1
   burbleSounds:
   - {fileID: 8300000, guid: 25c969d99d167c449beef40193a2000e, type: 3}
@@ -2790,12 +2790,12 @@ MonoBehaviour:
   dcPitchTrim: 0
   maximumTheoricalRPM: 9500
   launchMode: 0
-  lowPassStrength: 0.151
-  highPassStrength: 0.4
-  resonanceStrength: 0.2
-  distortionStrength: 0.702
-  chorusStrength: 0.333
-  reverbStrength: 0.584
+  lowPassStrength: 0
+  highPassStrength: 0
+  resonanceStrength: 0
+  distortionStrength: 0
+  chorusStrength: 0
+  reverbStrength: 0
   useSharedMixerReverb: 0
   reverbMixerParamName: ReverbAmount
   loadCrossoverPoint: 0.007
@@ -3823,7 +3823,7 @@ GameObject:
   - component: {fileID: 1535808716330106344}
   - component: {fileID: 5800985609916434214}
   m_Layer: 0
-  m_Name: ExhustSimTestObj
+  m_Name: VNS-Exhausts-Example
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0

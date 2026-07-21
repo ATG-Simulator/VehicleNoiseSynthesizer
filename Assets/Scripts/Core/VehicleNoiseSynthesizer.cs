@@ -131,6 +131,8 @@ namespace AroundTheGroundSimulator
         {
             public float smoothedRpm;
             public float smoothedLoad;
+            /// <summary>Raw load (0..1) for LPF/HPF only so spectral openness tracks throttle immediately.</summary>
+            public float filterLoad;
             public float previousSmoothedRpm;
             public float previousSmoothedLoad;
             public float clampedRpm;
@@ -312,21 +314,27 @@ namespace AroundTheGroundSimulator
                     out o.decStateInitialized, out o.decStateLowIndex,
                     out o.decStateHighIndex, out o.decStateHoldUntilTime);
 
+                // LPF/HPF use filterLoad (unsmoothed) so tip-in/out open or muffle immediately.
+                float filterLoad = Clamp01(inp.filterLoad);
                 float lpCurveValue = ClampF(
-                    SampleJob(BakedLowPassCurves, curveBase, inp.smoothedLoad), 500f, 22000f);
+                    SampleJob(BakedLowPassCurves, curveBase, filterLoad), 500f, 22000f);
                 float lpMix = Clamp01(MathMax(inp.lowPassIntensity,
                     inp.lowPassStrength + inp.mufflingIntensity));
                 o.lowPassTarget = Lerp(22000f, lpCurveValue, lpMix);
 
-                float hpAmount = Clamp01(inp.normalizedRpm * inp.normalizedRpm * inp.highPassStrength);
+                // HPF: RPM shape scaled by load (weak at coast, full under power).
+                float hpRpmTerm = inp.normalizedRpm * inp.normalizedRpm;
+                float hpLoadScale = Lerp(0.35f, 1f, filterLoad);
+                float hpAmount = Clamp01(hpRpmTerm * hpLoadScale * inp.highPassStrength);
                 o.highPassTarget = Lerp(10f, 1800f, hpAmount);
 
                 float resShape = math.sin(inp.normalizedRpm * math.PI);
                 o.lowPassQTarget = Lerp(1f, 8f, Clamp01(resShape * inp.resonanceStrength));
                 o.highPassQTarget = Lerp(1f, 2.2f, hpAmount);
 
+                // Distortion load term uses filterLoad (same snap policy as LPF/HPF).
                 float distDrive = SampleJob(BakedDistortionCurves, curveBase, inp.normalizedRpm) *
-                                   (inp.smoothedLoad + 0.5f);
+                                   (filterLoad + 0.5f);
                 o.distortionTarget = Clamp01(
                     distDrive * inp.distortionIntensity * (1f + inp.distortionStrength));
 
@@ -339,7 +347,7 @@ namespace AroundTheGroundSimulator
                 o.chorusDryTarget = MathMax(0f, 1f - totalWet);
 
                 float reverbAmount = Clamp01(
-                    MathMax(inp.normalizedRpm, inp.smoothedLoad) * inp.reverbStrength);
+                    MathMax(inp.normalizedRpm, filterLoad) * inp.reverbStrength);
                 o.reverbLevel = Lerp(-10000f, -1000f, reverbAmount);
                 o.reverbDecay = Lerp(0.8f, 2.3f, reverbAmount);
                 o.reverbAmountDb = Lerp(-80f, 0f, reverbAmount);
@@ -861,6 +869,7 @@ namespace AroundTheGroundSimulator
             {
                 smoothedRpm = smoothedRpm,
                 smoothedLoad = smoothedLoad,
+                filterLoad = Mathf.Clamp01(debug ? debugload : _load),
                 previousSmoothedRpm = previousSmoothedRpm,
                 previousSmoothedLoad = previousSmoothedLoad,
                 clampedRpm = clampedRpm,
@@ -991,7 +1000,7 @@ namespace AroundTheGroundSimulator
         private void ApplyPrecomputedFilters(
             List<RuntimeLayer> bank, float[] targetVolumes,
             in VehicleCalcOutput o,
-            float slewBase, float slew2000, float slew180, float slew2500)
+            float slewBase, float slew2500)
         {
             if (bank == null) return;
             for (int i = 0; i < bank.Count; i++)
@@ -999,28 +1008,26 @@ namespace AroundTheGroundSimulator
                 RuntimeLayer layer = bank[i];
                 float tv = i < targetVolumes.Length ? targetVolumes[i] : 0f;
                 float activity = Mathf.Max(layer.source.volume, tv);
-                if (activity < 0.0005f) continue;
 
-                // Skip disabled filter components (no need to write idle DSP params).
+                // Always keep LPF/HPF current (even silent layers) so crossfade-in
+                // does not open with a stale muffling/HPF state from last activity.
                 if (layer.lowPass != null && layer.lowPass.enabled)
                 {
-                    layer.lowPass.cutoffFrequency =
-                        Mathf.MoveTowards(layer.lowPass.cutoffFrequency, o.lowPassTarget, slew2000);
-                    layer.lowPass.lowpassResonanceQ =
-                        Mathf.MoveTowards(layer.lowPass.lowpassResonanceQ, o.lowPassQTarget, slewBase);
+                    layer.lowPass.cutoffFrequency = o.lowPassTarget;
+                    layer.lowPass.lowpassResonanceQ = o.lowPassQTarget;
                 }
                 if (layer.highPass != null && layer.highPass.enabled)
                 {
-                    layer.highPass.cutoffFrequency =
-                        Mathf.MoveTowards(layer.highPass.cutoffFrequency, o.highPassTarget, slew180);
-                    layer.highPass.highpassResonanceQ =
-                        Mathf.MoveTowards(layer.highPass.highpassResonanceQ, o.highPassQTarget, slewBase);
+                    layer.highPass.cutoffFrequency = o.highPassTarget;
+                    layer.highPass.highpassResonanceQ = o.highPassQTarget;
                 }
+
+                // Distortion tracks load; snap like LPF so tip-in grit is immediate.
                 if (layer.distortion != null && layer.distortion.enabled)
-                {
-                    layer.distortion.distortionLevel =
-                        Mathf.MoveTowards(layer.distortion.distortionLevel, o.distortionTarget, slewBase);
-                }
+                    layer.distortion.distortionLevel = o.distortionTarget;
+
+                if (activity < 0.0005f) continue;
+
                 if (layer.chorus != null && layer.chorus.enabled)
                 {
                     layer.chorus.dryMix = Mathf.MoveTowards(layer.chorus.dryMix, o.chorusDryTarget, slewBase);
@@ -1045,15 +1052,11 @@ namespace AroundTheGroundSimulator
             ApplyTargetsToBank(accLayers, accTargetVolumes, accTargetPitches, deltaTime);
             ApplyTargetsToBank(decLayers, decTargetVolumes, decTargetPitches, deltaTime);
 
-            float slew2000 = filterLPFSlewHz * deltaTime;
-            float slew180 = filterHPFSlewHz * deltaTime;
             float slew2500 = filterReverbSlewDbS * deltaTime;
             float slewBase = filterParamSlewRate * deltaTime;
 
-            ApplyPrecomputedFilters(accLayers, accTargetVolumes, _lastJobOutput,
-                slewBase, slew2000, slew180, slew2500);
-            ApplyPrecomputedFilters(decLayers, decTargetVolumes, _lastJobOutput,
-                slewBase, slew2000, slew180, slew2500);
+            ApplyPrecomputedFilters(accLayers, accTargetVolumes, _lastJobOutput, slewBase, slew2500);
+            ApplyPrecomputedFilters(decLayers, decTargetVolumes, _lastJobOutput, slewBase, slew2500);
 
             if (useSharedMixerReverb && mixer != null && !string.IsNullOrEmpty(reverbMixerParamName))
                 mixer.audioMixer.SetFloat(reverbMixerParamName, _lastJobOutput.reverbAmountDb);
@@ -1449,19 +1452,19 @@ namespace AroundTheGroundSimulator
         private const int BURBLEAUDIOPOOLSIZE = 5;
         [Header("Filter Slew Rates")]
         [Range(100f, 5000f)]
-        [Tooltip("Max Hz/tick the low-pass cutoff may move per fixed update.")]
+        [Tooltip("Legacy field. LPF cutoff snaps with load each tick; not used for cutoff.")]
         public float filterLPFSlewHz = 800f;
 
         [Range(10f, 500f)]
-        [Tooltip("Max Hz/tick the high-pass cutoff may move per fixed update.")]
+        [Tooltip("Legacy field. HPF cutoff snaps with load each tick; not used for cutoff.")]
         public float filterHPFSlewHz = 180f;
 
         [Range(500f, 5000f)]
-        [Tooltip("Max dB/tick the reverb level may move per fixed update.")]
+        [Tooltip("Max dB/s the reverb level may move.")]
         public float filterReverbSlewDbS = 2500f;
 
         [Range(0.1f, 5f)]
-        [Tooltip("Slew rate multiplier for 0-1 range parameters (Q, distortion, chorus).")]
+        [Tooltip("Slew rate multiplier for 0-1 range parameters (distortion, chorus). LPF/HPF cutoffs are immediate.")]
         public float filterParamSlewRate = 1f;
         private readonly List<RuntimeLayer> accLayers = new List<RuntimeLayer>();
         private readonly List<RuntimeLayer> decLayers = new List<RuntimeLayer>();
@@ -2440,15 +2443,19 @@ namespace AroundTheGroundSimulator
         {
             if (bank == null) return;
 
-            float lpCurveValue = Mathf.Clamp(SampleBakedCurve(bakedLowPassCurve, smoothedLoad), 500f, 22000f);
+            // Immediate load for spectral filters (same as Burst filterLoad path).
+            float filterLoad = Mathf.Clamp01(debug ? debugload : _load);
+            float lpCurveValue = Mathf.Clamp(SampleBakedCurve(bakedLowPassCurve, filterLoad), 500f, 22000f);
             float lpMix = Mathf.Clamp01(Mathf.Max(lowPassIntensity, lowPassStrength + mufflingIntensity));
             float lowPassTarget = Mathf.Lerp(22000f, lpCurveValue, lpMix);
-            float hpAmount = Mathf.Clamp01(normalizedRpm * normalizedRpm * highPassStrength);
+            float hpRpmTerm = normalizedRpm * normalizedRpm;
+            float hpLoadScale = Mathf.Lerp(0.35f, 1f, filterLoad);
+            float hpAmount = Mathf.Clamp01(hpRpmTerm * hpLoadScale * highPassStrength);
             float highPassTarget = Mathf.Lerp(10f, 1800f, hpAmount);
             float resShape = Mathf.Sin(normalizedRpm * Mathf.PI);
             float lowPassQ = Mathf.Lerp(1f, 8f, Mathf.Clamp01(resShape * resonanceStrength));
             float highPassQ = Mathf.Lerp(1f, 2.2f, hpAmount);
-            float distDrive = SampleBakedCurve(bakedDistortionCurve, normalizedRpm) * (smoothedLoad + 0.5f);
+            float distDrive = SampleBakedCurve(bakedDistortionCurve, normalizedRpm) * (filterLoad + 0.5f);
             float distortionTarget = Mathf.Clamp01(distDrive * distortionIntensity * (1f + distortionStrength));
             float chorusAmount = Mathf.Clamp01(Mathf.InverseLerp(0.3f, 1f, normalizedRpm) * chorusStrength);
             float chorusWet = Mathf.Lerp(0f, 0.55f, chorusAmount);
@@ -2456,13 +2463,11 @@ namespace AroundTheGroundSimulator
             float chorusRate = Mathf.Lerp(0.8f, 2.1f, chorusAmount);
             float totalWet = chorusWet * 0.6f + chorusWet * 0.3f + chorusWet * 0.1f;
             float chorusDry = Mathf.Max(0f, 1f - totalWet);
-            float reverbAmount = Mathf.Clamp01(Mathf.Max(normalizedRpm, smoothedLoad) * reverbStrength);
+            float reverbAmount = Mathf.Clamp01(Mathf.Max(normalizedRpm, filterLoad) * reverbStrength);
             float reverbLevel = Mathf.Lerp(-10000f, -1000f, reverbAmount);
             float reverbDecay = Mathf.Lerp(0.8f, 2.3f, reverbAmount);
             float reverbAmountDb = Mathf.Lerp(-80f, 0f, reverbAmount);
 
-            float slew2000 = filterLPFSlewHz * deltaTime;
-            float slew180 = filterHPFSlewHz * deltaTime;
             float slew2500 = filterReverbSlewDbS * deltaTime;
             float slewBase = filterParamSlewRate * deltaTime;
 
@@ -2471,20 +2476,22 @@ namespace AroundTheGroundSimulator
                 RuntimeLayer layer = bank[i];
                 float tv = i < targetVolumes.Length ? targetVolumes[i] : 0f;
                 float activity = Mathf.Max(layer.source.volume, tv);
-                if (activity < 0.0005f) continue;
 
                 if (layer.lowPass != null && layer.lowPass.enabled)
                 {
-                    layer.lowPass.cutoffFrequency = Mathf.MoveTowards(layer.lowPass.cutoffFrequency, lowPassTarget, slew2000);
-                    layer.lowPass.lowpassResonanceQ = Mathf.MoveTowards(layer.lowPass.lowpassResonanceQ, lowPassQ, slewBase);
+                    layer.lowPass.cutoffFrequency = lowPassTarget;
+                    layer.lowPass.lowpassResonanceQ = lowPassQ;
                 }
                 if (layer.highPass != null && layer.highPass.enabled)
                 {
-                    layer.highPass.cutoffFrequency = Mathf.MoveTowards(layer.highPass.cutoffFrequency, highPassTarget, slew180);
-                    layer.highPass.highpassResonanceQ = Mathf.MoveTowards(layer.highPass.highpassResonanceQ, highPassQ, slewBase);
+                    layer.highPass.cutoffFrequency = highPassTarget;
+                    layer.highPass.highpassResonanceQ = highPassQ;
                 }
                 if (layer.distortion != null && layer.distortion.enabled)
-                    layer.distortion.distortionLevel = Mathf.MoveTowards(layer.distortion.distortionLevel, distortionTarget, slewBase);
+                    layer.distortion.distortionLevel = distortionTarget;
+
+                if (activity < 0.0005f) continue;
+
                 if (layer.chorus != null && layer.chorus.enabled)
                 {
                     layer.chorus.dryMix = Mathf.MoveTowards(layer.chorus.dryMix, chorusDry, slewBase);
@@ -2590,11 +2597,13 @@ namespace AroundTheGroundSimulator
             }
 
             // Short grace period so gear-engagement noise does not kill the burble immediately.
+            // Use raw load so tip-in cuts the overlay without waiting for loadResponseTime.
             float burbleElapsed = Time.time - (dctShiftBurbleStopTime - dctShiftBurbleMaxDuration);
             if (burbleElapsed > 0.03f)
             {
-                float deltaLoad = smoothedLoad - previousSmoothedLoad;
-                if (deltaLoad > 0f && dctShiftFadeState != DctShiftFadeState.FadeOut)
+                float rawLoad = Mathf.Clamp01(debug ? debugload : _load);
+                float deltaLoad = rawLoad - previousSmoothedLoad;
+                if (deltaLoad > 0.05f && dctShiftFadeState != DctShiftFadeState.FadeOut)
                     BeginDctShiftFade(DctShiftFadeState.FadeOut, dctShiftBurbleSource.volume);
             }
         }
